@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-microservice-{{SERVICE_NUMBER}}
+spec:
+  selector:
+    app: my-microservice-{{SERVICE_NUMBER}}
+  ports:
+  - port: 80
+    targetPort: 5000
+  type: LoadBalancer

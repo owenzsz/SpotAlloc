@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-microservice-{{SERVICE_NUMBER}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-microservice-{{SERVICE_NUMBER}}
+  template:
+    metadata:
+      labels:
+        app: my-microservice-{{SERVICE_NUMBER}}
+    spec:
+      containers:
+      - name: my-microservice
+        image: owenzsz/my-microservice:v2
+        ports:
+        - containerPort: 5000
