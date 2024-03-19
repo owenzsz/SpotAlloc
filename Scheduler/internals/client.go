@@ -43,26 +43,23 @@ func NewKubernetesClient() (*KubernetesClient, error) {
 	}, nil
 }
 
-func (kc *KubernetesClient) GetServices() ([]Service, error) {
+func (kc *KubernetesClient) UpdateServices(resourceScheduler *ResourceScheduler) error {
 	serviceList, err := kc.clientset.CoreV1().Services(defaultNameSpace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list services: %v", err)
+		return fmt.Errorf("failed to list services: %v", err)
 	}
-
-	var services []Service
-	for _, svc := range serviceList.Items {
-		if svc.Name == "kubernetes" {
+	fmt.Println("Adding services to resource scheduler...")
+	for _, service := range serviceList.Items {
+		if service.Name == "kubernetes" {
 			continue // Skip the default "kubernetes" service
 		}
-		service := Service{
-			ID:      string(svc.UID),
-			Name:    svc.Name,
-			Credits: 100, // Set the initial credits as needed
+		if _, ok := resourceScheduler.Services[string(service.UID)]; ok {
+			continue // Skip the services that are already added
 		}
-		services = append(services, service)
+		resourceScheduler.AddService(string(service.UID), service.Name, 100)
 	}
 
-	return services, nil
+	return nil
 }
 
 func (kc *KubernetesClient) UpdateResourceUtilization(resourceScheduler *ResourceScheduler) error {
@@ -114,4 +111,37 @@ func (kc *KubernetesClient) UpdateResourceRequestsAndLimits(resourceScheduler *R
 	}
 
 	return nil
+}
+
+func (kc *KubernetesClient) GetTotalAllocableCPUResources() (int64, error) {
+	// Get the list of nodes in the cluster
+	nodeList, err := kc.clientset.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return 0, fmt.Errorf("failed to list nodes: %v", err)
+	}
+
+	var totalCPU, allocatableCPU int64
+	for _, node := range nodeList.Items {
+		// Get the allocatable CPU for each node
+		allocatableCPU = node.Status.Allocatable.Cpu().MilliValue()
+		totalCPU += allocatableCPU
+	}
+
+	// // Get the list of pods
+	// podList, err := kc.clientset.CoreV1().Pods(defaultNameSpace).List(context.Background(), metav1.ListOptions{})
+	// if err != nil {
+	// 	return 0, fmt.Errorf("failed to list pods in namespace %s: %v", defaultNameSpace, err)
+	// }
+
+	// var usedCPU int64
+	// for _, pod := range podList.Items {
+	// 	for _, container := range pod.Spec.Containers {
+	// 		// Get the CPU requests for each container
+	// 		cpuRequest := container.Resources.Requests.Cpu().MilliValue()
+	// 		usedCPU += cpuRequest
+	// 	}
+	// }
+
+	// availableCPU := totalCPU - usedCPU
+	return allocatableCPU, nil
 }

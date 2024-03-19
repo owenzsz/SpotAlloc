@@ -42,45 +42,42 @@ func main() {
 	}
 
 	// Create a new resource scheduler with the configurable parameters
+	allocableResources, err := kubernetesClient.GetTotalAllocableCPUResources()
+	if err != nil {
+		fmt.Printf("Failed to get total allocable CPU resources: %v", err)
+	}
 	alpha := 0.1
-	f := 1.0
-	resourceScheduler := scheduler.NewResourceScheduler(alpha, f)
+	resourceScheduler := scheduler.NewResourceScheduler(alpha, allocableResources)
 
 	// Run the scheduling loop every 2 minutes
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		log.Println("Fetching services from Kubernetes cluster...")
-		services, err := kubernetesClient.GetServices()
+		fmt.Println("Fetching services from Kubernetes cluster...")
+		err := kubernetesClient.UpdateServices(resourceScheduler)
 		if err != nil {
-			log.Printf("Failed to fetch services: %v", err)
+			fmt.Printf("Failed to update services: %v", err)
 			continue
 		}
 
-		log.Println("Adding services to resource scheduler...")
-		for _, service := range services {
-			// fmt.Printf("Adding service %s with ID %s and initial credits %f\n", service.Name, service.ID, service.Credits)
-			resourceScheduler.AddService(service.ID, service.Name, service.Credits)
-		}
-
-		log.Println("Updating resource utilization...")
+		fmt.Println("Updating resource utilization...")
 		err = kubernetesClient.UpdateResourceUtilization(resourceScheduler)
 		if err != nil {
-			log.Printf("Failed to update resource utilization: %v", err)
+			fmt.Printf("Failed to update resource utilization: %v", err)
 			continue
 		}
 
-		log.Println("Running resource scheduler...")
+		fmt.Println("Running resource scheduler...")
 		resourceScheduler.Schedule()
 
-		log.Println("Updating resource limits...")
+		fmt.Println("Updating resource limits...")
 		err = kubernetesClient.UpdateResourceRequestsAndLimits(resourceScheduler)
 		if err != nil {
-			log.Printf("Failed to update resource limits: %v", err)
+			fmt.Printf("Failed to update resource limits: %v", err)
 			continue
 		}
 
-		log.Println("Resource scheduling completed.")
+		fmt.Println("Resource scheduling completed.")
 	}
 }

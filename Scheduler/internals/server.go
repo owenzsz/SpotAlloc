@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+var (
+	evictionProbability = 0.1
+)
+
 type Service struct {
 	ID                string
 	Name              string
@@ -17,18 +21,16 @@ type Service struct {
 
 type ResourceScheduler struct {
 	sync.Mutex
-	Services     map[string]*Service
-	Alpha        float64
-	F            float64
-	SharedSlices float64
+	Services                map[string]*Service
+	Alpha                   float64
+	TotalAllocableResources int64
 }
 
-func NewResourceScheduler(alpha, f float64) *ResourceScheduler {
+func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceScheduler {
 	return &ResourceScheduler{
-		Services:     make(map[string]*Service),
-		Alpha:        alpha,
-		F:            f,
-		SharedSlices: 0,
+		Services:                make(map[string]*Service),
+		Alpha:                   alpha,
+		TotalAllocableResources: int64(allocableResources),
 	}
 }
 
@@ -42,7 +44,6 @@ func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64)
 		Credits: initialCredits,
 	}
 	rs.Services[id] = service
-	rs.SharedSlices += (1 - rs.Alpha) * rs.F
 }
 
 func (rs *ResourceScheduler) UpdateServiceUsage(id string, resourceUtilized float64) {
@@ -128,15 +129,18 @@ func (rs *ResourceScheduler) Schedule() {
 
 	demand := make(map[string]float64)
 	for id, service := range rs.Services {
-		demand[id] = service.ResourceRequested
+		//TODO: replace demand calculation with the actual model
+		demand[id] = service.ResourceRequested / evictionProbability
 	}
-
+	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
+	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
 	donatedSlices := make(map[string]float64)
 	alloc := make(map[string]float64)
 
 	for id := range rs.Services {
-		donatedSlices[id] = math.Max(0, rs.Alpha*rs.F-demand[id])
-		alloc[id] = math.Min(demand[id], rs.Alpha*rs.F)
+		donatedSlices[id] = math.Max(0, rs.Alpha*fairShare-demand[id])
+		alloc[id] = math.Min(demand[id], rs.Alpha*fairShare)
+		rs.Services[id].Credits += (1 - rs.Alpha) * fairShare
 	}
 
 	donors := make([]string, 0)
@@ -153,11 +157,11 @@ func (rs *ResourceScheduler) Schedule() {
 		}
 	}
 
-	for len(borrowers) > 0 && (sumDonatedSlices(donatedSlices) > 0 || rs.SharedSlices > 0) {
+	for len(borrowers) > 0 && (sumDonatedSlices(donatedSlices) > 0 || sharedSlices > 0) {
 		// Find the borrower with maximum credits
 		selectedBorrower := selectBorrowerWithMaxCredits(rs.Services, borrowers)
 
-		var requiredAmount = 1.0
+		var requiredAmount = 1000.0 //unit: milliCPU, 1000 milliCPU = 1 CPU
 		if len(donors) > 0 {
 			// Find the donor with minimum credits
 			selectedDonor := selectDonorWithMinCredits(rs.Services, donors)
@@ -170,23 +174,24 @@ func (rs *ResourceScheduler) Schedule() {
 				donors = removeFromSlice(donors, selectedDonor)
 			}
 		} else {
-			rs.SharedSlices -= requiredAmount
+			sharedSlices -= requiredAmount
 		}
 
 		alloc[selectedBorrower] += requiredAmount
 		rs.Services[selectedBorrower].Credits -= requiredAmount
 
 		// Update the set of borrowers
-		if alloc[selectedBorrower] == demand[selectedBorrower] || rs.Services[selectedBorrower].Credits == 0 {
+		if alloc[selectedBorrower] >= demand[selectedBorrower] || rs.Services[selectedBorrower].Credits == 0 {
 			borrowers = removeFromSlice(borrowers, selectedBorrower)
 		}
 	}
 
-	for serviceID, allocation := range alloc {
-		rs.Services[serviceID].ResourceLimit = allocation
+	for serviceID, resourceAllocation := range alloc {
+		rs.Services[serviceID].ResourceLimit = resourceAllocation
 	}
 }
 
+// TODO: implement this with heap for better performance
 func selectBorrowerWithMaxCredits(services map[string]*Service, borrowers []string) string {
 	maxCredits := float64(-1)
 	var selectedBorrower string
