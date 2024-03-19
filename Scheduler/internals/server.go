@@ -161,24 +161,24 @@ func (rs *ResourceScheduler) Schedule() {
 		// Find the borrower with maximum credits
 		selectedBorrower := selectBorrowerWithMaxCredits(rs.Services, borrowers)
 
-		var requiredAmount = 1000.0 //unit: milliCPU, 1000 milliCPU = 1 CPU
+		borrowerRequiredAmount := math.Max(0, demand[selectedBorrower]-alloc[selectedBorrower]) //unit: milliCPU, 1000 milliCPU = 1 CPU
+		borrowerGainedAmount := borrowerRequiredAmount
 		if len(donors) > 0 {
 			// Find the donor with minimum credits
 			selectedDonor := selectDonorWithMinCredits(rs.Services, donors)
-			requiredAmount = math.Min(requiredAmount, donatedSlices[selectedDonor])
-			// in case the current donor has less than 1 required amount
-			rs.Services[selectedDonor].Credits += requiredAmount
-			donatedSlices[selectedDonor] -= requiredAmount
+			borrowerGainedAmount = math.Min(borrowerRequiredAmount, donatedSlices[selectedDonor])
+			rs.Services[selectedDonor].Credits += borrowerGainedAmount
+			donatedSlices[selectedDonor] -= borrowerGainedAmount
 			// Update the set of donors
 			if donatedSlices[selectedDonor] == 0 {
 				donors = removeFromSlice(donors, selectedDonor)
 			}
 		} else {
-			sharedSlices -= requiredAmount
+			sharedSlices -= borrowerGainedAmount
 		}
 
-		alloc[selectedBorrower] += requiredAmount
-		rs.Services[selectedBorrower].Credits -= requiredAmount
+		alloc[selectedBorrower] += borrowerGainedAmount
+		rs.Services[selectedBorrower].Credits -= borrowerGainedAmount
 
 		// Update the set of borrowers
 		if alloc[selectedBorrower] >= demand[selectedBorrower] || rs.Services[selectedBorrower].Credits == 0 {
