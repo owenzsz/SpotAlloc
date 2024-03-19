@@ -1,21 +1,47 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
+	"os/exec"
 	"time"
 
 	scheduler "github.com/owenzsz/SpotAllocScheduler/internals"
 )
 
 func main() {
-	// Create a new Kubernetes client
 
-	kubernetesClient, err := scheduler.NewKubernetesClient() // Use the fully qualified package name to call the NewKubernetesClient function
+	//check if the kubeconfig file exists
+	if _, err := os.Stat("kubeconfigr"); err == nil {
+		os.Remove("kubeconfig")
+	}
+	//create a new kubeconfig file
+	kubeconfig, err := os.Create("kubeconfig")
+	if err != nil {
+		fmt.Printf("Failed to create kubeconfig file: %v\n", err)
+		return
+	}
+	defer kubeconfig.Close()
+
+	// Run the kubectl command and redirect the output to the kubeconfig file
+	cmd := exec.Command("kubectl", "config", "view", "--raw")
+	cmd.Stdout = kubeconfig
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("Failed to run kubectl command: %v\n", err)
+		return
+	}
+
+	fmt.Println("Kubeconfig file generated successfully.")
+
+	// Create a new Kubernetes client
+	kubernetesClient, err := scheduler.NewKubernetesClient()
 	if err != nil {
 		log.Fatalf("Failed to create Kubernetes client: %v", err)
 	}
 
-	// Create a new resource scheduler with the desired parameters
+	// Create a new resource scheduler with the configurable parameters
 	alpha := 0.1
 	f := 1.0
 	resourceScheduler := scheduler.NewResourceScheduler(alpha, f)
@@ -34,6 +60,7 @@ func main() {
 
 		log.Println("Adding services to resource scheduler...")
 		for _, service := range services {
+			// fmt.Printf("Adding service %s with ID %s and initial credits %f\n", service.Name, service.ID, service.Credits)
 			resourceScheduler.AddService(service.ID, service.Name, service.Credits)
 		}
 

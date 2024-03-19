@@ -8,8 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/metrics/pkg/client/clientset/versioned"
+)
+
+var (
+	defaultNameSpace = "default"
 )
 
 type KubernetesClient struct {
@@ -18,9 +22,9 @@ type KubernetesClient struct {
 }
 
 func NewKubernetesClient() (*KubernetesClient, error) {
-	config, err := rest.InClusterConfig()
+	config, err := clientcmd.BuildConfigFromFlags("", "kubeconfig")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get in-cluster config: %v", err)
+		return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
@@ -40,13 +44,16 @@ func NewKubernetesClient() (*KubernetesClient, error) {
 }
 
 func (kc *KubernetesClient) GetServices() ([]Service, error) {
-	serviceList, err := kc.clientset.CoreV1().Services(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
+	serviceList, err := kc.clientset.CoreV1().Services(defaultNameSpace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %v", err)
 	}
 
 	var services []Service
 	for _, svc := range serviceList.Items {
+		if svc.Name == "kubernetes" {
+			continue // Skip the default "kubernetes" service
+		}
 		service := Service{
 			ID:      string(svc.UID),
 			Name:    svc.Name,
@@ -62,7 +69,7 @@ func (kc *KubernetesClient) UpdateResourceUtilization(resourceScheduler *Resourc
 	services := resourceScheduler.GetAllServices()
 
 	for _, service := range services {
-		podMetrics, err := kc.metricsClient.MetricsV1beta1().PodMetricses(metav1.NamespaceAll).List(context.Background(), metav1.ListOptions{
+		podMetrics, err := kc.metricsClient.MetricsV1beta1().PodMetricses(defaultNameSpace).List(context.Background(), metav1.ListOptions{
 			LabelSelector: fmt.Sprintf("app=%s", service.Name),
 		})
 		if err != nil {
@@ -86,7 +93,8 @@ func (kc *KubernetesClient) UpdateResourceRequestsAndLimits(resourceScheduler *R
 	services := resourceScheduler.GetAllServices()
 
 	for _, service := range services {
-		deployment, err := kc.clientset.AppsV1().Deployments(metav1.NamespaceAll).Get(context.Background(), service.Name, metav1.GetOptions{})
+		deploymentName := service.Name
+		deployment, err := kc.clientset.AppsV1().Deployments(defaultNameSpace).Get(context.Background(), deploymentName, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get deployment for service %s: %v", service.Name, err)
 		}
@@ -99,7 +107,7 @@ func (kc *KubernetesClient) UpdateResourceRequestsAndLimits(resourceScheduler *R
 			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", int64(service.ResourceRequested))),
 		}
 
-		_, err = kc.clientset.AppsV1().Deployments(deployment.Namespace).Update(context.Background(), deployment, metav1.UpdateOptions{})
+		_, err = kc.clientset.AppsV1().Deployments(defaultNameSpace).Update(context.Background(), deployment, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update deployment for service %s: %v", service.Name, err)
 		}
