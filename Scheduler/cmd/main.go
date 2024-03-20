@@ -57,20 +57,20 @@ func main() {
 		fmt.Println("Fetching services from Kubernetes cluster...")
 		err := kubernetesClient.AddServicesIfNeeded(resourceScheduler)
 		if err != nil {
-			fmt.Printf("Failed to update services: %v", err)
+			fmt.Printf("Failed to update services: %v \n", err)
 			continue
 		}
 
 		err = kubernetesClient.UpdateServiceLatency(resourceScheduler)
 		if err != nil {
-			fmt.Printf("Failed to update service latency: %v", err)
+			fmt.Printf("Failed to update service latency: %v \n", err)
 			continue
 		}
 
 		fmt.Println("Updating resource utilization...")
 		err = kubernetesClient.UpdateResourceUtilization(resourceScheduler)
 		if err != nil {
-			fmt.Printf("Failed to update resource utilization: %v", err)
+			fmt.Printf("Failed to update resource utilization: %v \n", err)
 			continue
 		}
 
@@ -80,7 +80,7 @@ func main() {
 		fmt.Println("Updating resource limits...")
 		err = kubernetesClient.UpdateResourceRequestsAndLimits(resourceScheduler)
 		if err != nil {
-			fmt.Printf("Failed to update resource limits: %v", err)
+			fmt.Printf("Failed to update resource limits: %v \n", err)
 			continue
 		}
 

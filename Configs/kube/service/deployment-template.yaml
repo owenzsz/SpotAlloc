@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: my-microservice
-        image: owenzsz/my-microservice:v3.1
+        image: owenzsz/my-microservice:v3.2
         ports:
         - containerPort: 5000

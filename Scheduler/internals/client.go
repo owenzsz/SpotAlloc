@@ -180,7 +180,7 @@ func (kc *KubernetesClient) GetServiceLatency(serviceName string, quantile int64
 	queryAPI := prometheusv1.NewAPI(client)
 
 	// Specify the Prometheus query to retrieve the latency metrics for the service
-	query := fmt.Sprintf(`request_latency_milliseconds{service="%s"}[%dm])`, serviceName, pastDuration)
+	query := fmt.Sprintf(`request_latency_milliseconds{service="%s"}`, serviceName)
 	end := time.Now()
 	start := end.Add(time.Duration(-pastDuration) * time.Minute)
 
@@ -205,9 +205,9 @@ func (kc *KubernetesClient) GetServiceLatency(serviceName string, quantile int64
 
 	values := make([]float64, 0)
 	for _, stream := range matrix {
-		// fmt.Printf("Metric: %s\n", stream.Metric)
+		fmt.Printf("Metric: %s\n", stream.Metric)
 		for _, value := range stream.Values {
-			// fmt.Printf("  At %s, value: %f\n", value.Timestamp.Time(), float64(value.Value))
+			fmt.Printf("  At %s, value: %f\n", value.Timestamp.Time(), float64(value.Value))
 			values = append(values, float64(value.Value))
 		}
 	}
@@ -226,8 +226,9 @@ func (kc *KubernetesClient) getPrometheusClientAddress() (string, error) {
 		return "", fmt.Errorf("failed to get prometheus service: %v", err)
 	}
 	if len(prometheusService.Status.LoadBalancer.Ingress) > 0 {
-		externalIP := prometheusService.Status.LoadBalancer.Ingress[0].IP
-		prometheusAddress := fmt.Sprintf("http://%s:9090", externalIP)
+		externalHostname := prometheusService.Status.LoadBalancer.Ingress[0].Hostname
+		prometheusAddress := fmt.Sprintf("http://%s:9090", externalHostname)
+		fmt.Println("Prometheus address: ", prometheusAddress)
 		return prometheusAddress, nil
 	} else {
 		return "", fmt.Errorf("failed to get prometheus service external IP")
