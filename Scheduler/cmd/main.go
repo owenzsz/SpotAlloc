@@ -55,9 +55,15 @@ func main() {
 
 	for range ticker.C {
 		fmt.Println("Fetching services from Kubernetes cluster...")
-		err := kubernetesClient.UpdateServices(resourceScheduler)
+		err := kubernetesClient.AddServicesIfNeeded(resourceScheduler)
 		if err != nil {
 			fmt.Printf("Failed to update services: %v", err)
+			continue
+		}
+
+		err = kubernetesClient.UpdateServiceLatency(resourceScheduler)
+		if err != nil {
+			fmt.Printf("Failed to update service latency: %v", err)
 			continue
 		}
 

@@ -17,6 +17,7 @@ type Service struct {
 	ResourceUtilized  float64
 	ResourceRequested float64
 	ResourceLimit     float64
+	latency           float64
 }
 
 type ResourceScheduler struct {
@@ -96,6 +97,19 @@ func (rs *ResourceScheduler) UpdateServiceRequest(id string, request float64) {
 	}
 
 	service.ResourceRequested = request
+}
+
+func (rs *ResourceScheduler) UpdateServiceLatency(id string, latency float64) {
+	rs.Lock()
+	defer rs.Unlock()
+
+	service, ok := rs.Services[id]
+	if !ok {
+		fmt.Printf("Service with id %s does not exist\n", id)
+		return
+	}
+
+	service.latency = latency
 }
 
 func (rs *ResourceScheduler) GetServiceCredits(id string) float64 {
