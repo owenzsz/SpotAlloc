@@ -4,66 +4,42 @@ from sklearn.kernel_ridge import KernelRidge
 import statsmodels.api as sm
 import scipy.stats as stats
 
+from MQ import MessageQueue
+
 
 # microservice-level load estimator
 # assume constant step size for the time series model
 class LoadEstimator(object):
-    def __init__(self, data_logger, phi=0.7, theta=0.3):
-        self.data_logger = data_logger
-        self.phi = -1
-        self.theta = -1
+    def __init__(self, phi=0.7, theta=0.3):
+        self.phi = phi
+        self.theta = theta
 
-        self.data = None
+        self.data = np.empty((0,))
 
         self.model = None
 
-        self.setParam(phi, theta)
-
-    def setParam(self, phi=0.7, theta=0.3):
+    def resetParam(self, phi=0.7, theta=0.3):
         self.phi = 0.7
         self.theta = theta
 
-    def load_data(self):
-        if self.model != None:
-            return np.random.normal(size=10)
-            # return np.array([1,2,3,4]), np.array([1,2,3,4])
+    # def initialize_model(self):
+    #     self.model = sm.tsa.ARIMA(self.data, order=(1, 0,1))
+    #     self.model = self.model.fit()
 
-        np.random.seed(0)
-        n_samples = 100
-        # Generate AR(1) time series data
-        self.data = [np.random.normal() for _ in range(n_samples)]
-        # print("old data:", self.data)
-        ar_data = self.data
-        for i in range(1, n_samples):
-            ar_data[i] = self.phi * ar_data[i-1] + np.random.normal()
+    def load_data(self, load_data):
+        self.data = load_data
 
-        # Add MA(1) component
-        ma_data = [ar_data[i] + self.theta * ar_data[i-1] + np.random.normal() for i in range(1, n_samples)]
-        return ma_data
-    
-    def loadEstimate(self):
-        if self.model == None:
-
-            # print("old data:", ma_data)
-            # Create ARMA(1,1) model
-            # self.model = sm.tsa.ARIMA(ma_data, order=(1, 0,1))
-            self.model = sm.tsa.ARIMA(self.load_data(), order=(1, 0,1))
-
-            # Fit the model
+    def update(self):
+        if self.model is None:
+            self.model = sm.tsa.ARIMA(self.data, order=(1, 0,1))
             self.model = self.model.fit()
         else:
-            # new_data = self.load_data()
-        
-            # Update the model with new observations
-            self.model = self.model.append(self.load_data())
+            self.model = self.model.append(self.data)
 
-        # print(self.model.summary())
-
-        # Forecast future values
-        # forecast_values, stderr, conf_int = result.get_forecast(steps=10)  # Forecast 10 future values
+    def predict(self):
         forecast_results = self.model.get_forecast(steps=1)  # Forecast 10 future values
        
-       # Extract forecasted values and standard errors
+        # Extract forecasted values and standard errors
         forecast_values = forecast_results.predicted_mean
         stderr = forecast_results.se_mean
 
@@ -74,18 +50,22 @@ class LoadEstimator(object):
         # Calculate confidence bounds
         lower_bound = forecast_values - z_score * stderr
         upper_bound = forecast_values + z_score * stderr
-
-        # # Print confidence bounds
-        # print("forecast_values:", forecast_values)
-        # print("Lower Bound:", lower_bound)
-        # print("Upper Bound:", upper_bound)
-
         return forecast_values, lower_bound, upper_bound
 
 
-le = LoadEstimator(None)
-pred, l, u = le.loadEstimate()
-print(pred, l, u)
+# le = LoadEstimator()
 
-pred, l, u = le.loadEstimate()
-print(pred, l, u)
+# load = np.array([10,20,30,40,50,60])
+# le.load_data(load)
+# le.update()
+
+# v,l,u = le.predict()
+# print(v, l, u)
+
+
+# load = np.array([70,80,90,100])
+# le.load_data(load)
+# le.update()
+
+# v,l,u = le.predict()
+# print(v, l, u)
