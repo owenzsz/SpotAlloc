@@ -11,7 +11,7 @@ import threading
 
 # microservice-level resource learner
 class ResourceLearner(object):
-    def __init__(self, max_local_data_table_size, filepath):
+    def __init__(self, max_local_data_table_size=-1, filepath=None):
         self.max_local_data_table_size = max_local_data_table_size
         self.filepath = filepath
 
@@ -26,6 +26,7 @@ class ResourceLearner(object):
 
         # self.train_load = np.empty((0,))
         self.initialized = False
+        self.initialize()
 
     def initialize(self):
         self.performance_estimator.initialize_model()
@@ -35,6 +36,10 @@ class ResourceLearner(object):
         # self.lock.acquire()
         self.mq.offer(timestamp, data)
         # self.lock.release()
+
+    def get_model(self):
+        self.update()
+        return self.performance_estimator.get_model()
 
     def load_data(self):
         # self.lock.acquire()
@@ -50,7 +55,7 @@ class ResourceLearner(object):
             data = self.mq.poll()
             # print(np.concatenate([value for key, value in data.items() if (key != 'timestamp') and (key != 'performance') and (key != 'load')]))
             # x_perf = np.append(x_perf, np.concatenate([value for key, value in data.items() if (key != 'timestamp') and (key != 'performance')]).reshape(1,-1), axis=0)
-            x_extract = [value for key, value in data.items() if key not in ['timestamp', 'performance', 'load']]
+            x_extract = [value for key, value in data.items() if key not in ['timestamp', 'performance']]
             # x_extract = np.concatenate(x_extract).reshape(1,-1)
             x_extract = [np.atleast_2d(np.array(value)) for value in x_extract]
             x_extract = np.concatenate(x_extract, axis=1)
@@ -78,16 +83,21 @@ class ResourceLearner(object):
     
     def update(self):
         ret = self.load_data()
-        print(ret)
+        # print(ret)
         if ret:
             self.initialized = True
             self.performance_estimator.update()
             self.load_estimator.update()
 
-    def predict_resource(self, performance_param):
+    def predict_performance(self, resource_param):
+        self.update()
         if self.initialized is False:
             return None
-        return self.performance_estimator.predict(performance_param), self.load_estimator.predict()
+        # print(resource_param)
+        # resource_param.extend(self.load_estimator.predict().tolist())
+        resource_param = np.append(resource_param, self.load_estimator.predict())
+        # print(resource_param)
+        return self.performance_estimator.predict(resource_param)
 
 
 
@@ -101,11 +111,11 @@ class ResourceLearner(object):
 # rl.put_data(5, {"load": [50], "resource": [90], "performance":[500]})
 
 
-# rl.update()
-# res = rl.predict_resource([50])
+# # rl.update()
+# res = rl.predict_performance([50])
 # print(res)
 
-# res = rl.predict_resource([60])
+# res = rl.predict_performance([60])
 # print(res)
 
 # rl.put_data(1, {"load": [10], "resource": [100], "performance":[600]})
@@ -115,11 +125,11 @@ class ResourceLearner(object):
 # rl.put_data(4, {"load": [40], "resource": [140], "performance":[1000]})
 # rl.put_data(5, {"load": [50], "resource": [150], "performance":[1100]})
 
-# rl.update()
-# res = rl.predict_resource([150])
+# # rl.update()
+# res = rl.predict_performance([150])
 # print(res)
 
-# res = rl.predict_resource([160])
+# res = rl.predict_performance([160])
 # print(res)
-# res = rl.predict_resource([50])
+# res = rl.predict_performance([50])
 # print(res)

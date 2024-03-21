@@ -119,10 +119,10 @@ class PreemptionEstimator(object):
         return prob
 
 
-P = PreemptionEstimator(10)
-# P.poll_price()
+# P = PreemptionEstimator(10)
+# # P.poll_price()
 
-P.add_data()
-P.compute_preemption_prob()
+# P.add_data()
+# P.compute_preemption_prob()
 
 # print(P.prob)

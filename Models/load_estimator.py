@@ -28,6 +28,9 @@ class LoadEstimator(object):
 
     def load_data(self, load_data):
         self.data = load_data
+    
+    def get_model(self):
+        return self.model
 
     def update(self):
         if self.model is None:
@@ -50,7 +53,8 @@ class LoadEstimator(object):
         # Calculate confidence bounds
         lower_bound = forecast_values - z_score * stderr
         upper_bound = forecast_values + z_score * stderr
-        return forecast_values, lower_bound, upper_bound
+        # return forecast_values, lower_bound, upper_bound
+        return forecast_values
 
 
 # le = LoadEstimator()

@@ -23,6 +23,10 @@ class MessageQueue(object):
         self.mq = queue.Queue()
 
         self.lock = threading.Lock()
+
+        self.log_to_disk = True
+        if self.filepath is None:
+            self.log_to_disk = False
     
     def offer(self, timestamp: float, data: dict[str, T]):
         data['timestamp'] = timestamp
@@ -43,7 +47,9 @@ class MessageQueue(object):
 
         self.lock.release()
 
-        self.log_data_to_disk(data)
+        if self.log_to_disk:
+            self.log_data_to_disk(data)
+
         return data
     
     def empty(self):

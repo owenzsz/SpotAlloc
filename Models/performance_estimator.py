@@ -6,7 +6,7 @@ import scipy.stats as stats
 
 from MQ import MessageQueue
 
-FEATURE_NUM = 1 # FEATURE_NUM is the number of metric used for predictions
+FEATURE_NUM = 2 # FEATURE_NUM is the number of metric used for predictions
 
 # microservice-level performance-resource estimator
 class PerformanceEstimator(object):
@@ -36,11 +36,15 @@ class PerformanceEstimator(object):
         self.x_train = np.append(self.x_train, x_append, axis=0)
         self.y_train = np.append(self.y_train, y_append, axis=0)
     
+    def get_model(self):
+        return self.model
+    
     def update(self):
         self.model.fit(self.x_train, self.y_train)
     
     # performance_param can be simple list [a,b,c,...]
     def predict(self, performance_param):
+        # print(performance_param)
         performance_param = np.array(performance_param).reshape(1,-1)
         return self.model.predict(performance_param)
 
