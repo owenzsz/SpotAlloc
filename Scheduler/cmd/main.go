@@ -61,9 +61,9 @@ func main() {
 			continue
 		}
 
-		err = kubernetesClient.UpdateServiceLatency(resourceScheduler)
+		err = kubernetesClient.UpdateServicePerformanceMetrics(resourceScheduler)
 		if err != nil {
-			fmt.Printf("Failed to update service latency: %v \n", err)
+			fmt.Printf("Failed to update performance metrics: %v \n", err)
 			continue
 		}
 

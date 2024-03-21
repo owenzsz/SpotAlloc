@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/montanaflynn/stats"
 	"github.com/prometheus/client_golang/api"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -67,14 +66,16 @@ func (kc *KubernetesClient) AddServicesIfNeeded(resourceScheduler *ResourceSched
 	return nil
 }
 
-func (kc *KubernetesClient) UpdateServiceLatency(resourceScheduler *ResourceScheduler) error {
+func (kc *KubernetesClient) UpdateServicePerformanceMetrics(resourceScheduler *ResourceScheduler) error {
 	services := resourceScheduler.GetAllServices()
 	for _, service := range services {
-		latency, err := kc.GetServiceLatency(service.Name, 90, 2)
+		latency, QPS, err := kc.GetServicePerformanceMetrics(service.Name, 0.95, 2)
 		if err != nil {
-			return fmt.Errorf("failed to get latency for service %s when updating the latency value: %v", service.Name, err)
+			return fmt.Errorf("failed to get performance metrics for service %s when updating the metrics: %v", service.Name, err)
 		}
+		fmt.Printf("Service: %s, Latency: %f, QPS: %f\n", service.Name, latency, QPS)
 		resourceScheduler.UpdateServiceLatency(service.ID, latency)
+		resourceScheduler.UpdateServiceQPS(service.ID, QPS)
 	}
 	return nil
 }
@@ -163,33 +164,38 @@ func (kc *KubernetesClient) GetTotalAllocableCPUResources() (int64, error) {
 	return allocatableCPU, nil
 }
 
-func (kc *KubernetesClient) GetServiceLatency(serviceName string, quantile int64, pastDuration int64) (float64, error) {
-	// Create a new Prometheus API client
+func (kc *KubernetesClient) GetServicePerformanceMetrics(serviceName string, latencyQuantile float64, pastDuration int64) (float64, float64, error) {
 	prometheusClientAddress, err := kc.getPrometheusClientAddress()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get Prometheus client IP address: %v", err)
+		return 0, 0, fmt.Errorf("failed to get Prometheus client IP address: %v", err)
 	}
 	client, err := api.NewClient(api.Config{
 		Address: prometheusClientAddress,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to create Prometheus client: %v", err)
+		return 0, 0, fmt.Errorf("failed to create Prometheus client: %v", err)
 	}
 
 	// Create a new Prometheus query API client
 	queryAPI := prometheusv1.NewAPI(client)
+	latency, err := kc.GetServiceLatency(queryAPI, serviceName, latencyQuantile, pastDuration)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get latency for service %s: %v", serviceName, err)
+	}
+	QPS, err := kc.GetServiceQPS(queryAPI, serviceName, pastDuration)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get QPS for service %s: %v", serviceName, err)
+	}
+	return latency, QPS, nil
 
+}
+
+func (kc *KubernetesClient) GetServiceLatency(queryAPI prometheusv1.API, serviceName string, quantile float64, pastDuration int64) (float64, error) {
 	// Specify the Prometheus query to retrieve the latency metrics for the service
-	query := fmt.Sprintf(`request_latency_milliseconds{service="%s"}`, serviceName)
-	end := time.Now()
-	start := end.Add(time.Duration(-pastDuration) * time.Minute)
+	query := fmt.Sprintf(`histogram_quantile(%f, rate(request_latency_seconds_bucket{service="%s"}[%dm]))`, quantile, serviceName, pastDuration)
 
 	// Execute the Prometheus query
-	result, warn, err := queryAPI.QueryRange(context.Background(), query, prometheusv1.Range{
-		Start: start,
-		End:   end,
-		Step:  time.Second,
-	})
+	result, warn, err := queryAPI.Query(context.Background(), query, time.Now())
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute Prometheus query: %v", err)
 	}
@@ -198,25 +204,44 @@ func (kc *KubernetesClient) GetServiceLatency(serviceName string, quantile int64
 	}
 
 	// Extract the latency value from the query result
-	matrix, ok := result.(model.Matrix)
+	var latency float64
+	vector, ok := result.(model.Vector)
 	if !ok {
 		return 0, fmt.Errorf("query did not return a matrix")
 	}
 
-	values := make([]float64, 0)
-	for _, stream := range matrix {
-		fmt.Printf("Metric: %s\n", stream.Metric)
-		for _, value := range stream.Values {
-			fmt.Printf("  At %s, value: %f\n", value.Timestamp.Time(), float64(value.Value))
-			values = append(values, float64(value.Value))
-		}
+	for _, sample := range vector {
+		latency = float64(sample.Value)
+		break
+	}
+	return latency, nil
+}
+
+func (kc *KubernetesClient) GetServiceQPS(queryAPI prometheusv1.API, serviceName string, pastDuration int64) (float64, error) {
+	query := fmt.Sprintf(`rate(request_count_total{service="%s"}[%dm])`, serviceName, pastDuration)
+
+	// Execute the Prometheus query
+	result, warn, err := queryAPI.Query(context.Background(), query, time.Now())
+	if err != nil {
+		return 0, fmt.Errorf("failed to execute Prometheus query: %v", err)
+	}
+	if len(warn) > 0 {
+		fmt.Printf("Warnings: %v\n", warn)
 	}
 
-	latencyQuantile, err := stats.Percentile(values, 90.0)
-	if err != nil {
-		return 0, fmt.Errorf("failed to calculate 90th percentile: %v", err)
+	// Extract the QPS value from the query result
+	var QPS float64
+	vector, ok := result.(model.Vector)
+	if !ok {
+		return 0, fmt.Errorf("query did not return a matrix")
 	}
-	return latencyQuantile, nil
+
+	for _, sample := range vector {
+		QPS = float64(sample.Value)
+		break
+	}
+	return QPS, nil
+
 }
 
 func (kc *KubernetesClient) getPrometheusClientAddress() (string, error) {
@@ -228,7 +253,7 @@ func (kc *KubernetesClient) getPrometheusClientAddress() (string, error) {
 	if len(prometheusService.Status.LoadBalancer.Ingress) > 0 {
 		externalHostname := prometheusService.Status.LoadBalancer.Ingress[0].Hostname
 		prometheusAddress := fmt.Sprintf("http://%s:9090", externalHostname)
-		fmt.Println("Prometheus address: ", prometheusAddress)
+		// fmt.Println("Prometheus address: ", prometheusAddress)
 		return prometheusAddress, nil
 	} else {
 		return "", fmt.Errorf("failed to get prometheus service external IP")
