@@ -1,9 +1,15 @@
+### Import
+The main interaction class for resource estimator is `ResourceAllocator` class in resource_allocator.py. To use it, first do
+```
+from resource_allocator.py import ResourceAllocator
+```
+
 ### Initialization
 ```
 ra = ResourceAllocator()
 ```
 
-### register microservices
+### Register Microservices
 After initialization, the resource allocator must first register microservices with the following code
 ```
 ra.register_microservice("custom_identifier")
@@ -14,14 +20,14 @@ ra.start_poll_one("custom_identifier")
 ```
 This will start the price polling process which gets up-to-date price data every 30 seconds
 
-### log status
+### Log Status
 Each microservice is responsible to log corresponding service status for future optimization using the following code
 ```
 ra.log_data("target_microservice_identifier", 1, {"load": [10], "resource": [40], "performance":[100]})
 ```
 this function is in the form of `log_data(identifier, timestamp, dict_data)`
 
-### demand optimization
+### Demand Optimization
 ```
 ret = ra.allocate()
 ```
