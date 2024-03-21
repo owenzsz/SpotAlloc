@@ -29,6 +29,15 @@ class ResourceAllocator(object):
             self.resource_learner_pool.append(ResourceLearner())
             self.preemption_estimator_pool.append(PreemptionEstimator(max_price=-1))
         
+    def start_poll_one(self, identifier):
+        id = self.id_mapping[identifier]
+
+        self.preemption_estimator_pool[id].poll_price()
+    
+    def start_poll_all(self):
+        for i in range(self.n_microservices):
+            self.preemption_estimator_pool[i].poll_price()
+
     # def get_estimation(self):
     #     self.preemptions = [self.preemption_estimator_pool[i].compute_preemption_prob() for i in range(self.n_microservices)]
     #     # self.performance_models = [self.resource_learner_pool[i].get_model() for i in range(self.n_microservices)]
@@ -96,3 +105,5 @@ ret = ra.allocate()
 
 
 print(ret)
+
+# ra.start_poll_all()

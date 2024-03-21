@@ -67,9 +67,9 @@ class PreemptionEstimator(object):
                 else:
                     self.exceeds = np.append(self.exceeds, 0)
             
-            print(self.time_deltas)
-            print(self.prices)
-            print(self.exceeds)
+            # print(self.time_deltas)
+            # print(self.prices)
+            # print(self.exceeds)
 
             if self.predict_intention:
                 self.mutex_lock.release()
