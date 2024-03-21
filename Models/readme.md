@@ -31,4 +31,4 @@ this function is in the form of `log_data(identifier, timestamp, dict_data)`
 ```
 ret = ra.allocate()
 ```
-This returns a vector, with each element the optimized allocation for each microservice of the application
+This will automatically polls the logged data and returns a vector, with each element the optimized allocation for each microservice of the application
