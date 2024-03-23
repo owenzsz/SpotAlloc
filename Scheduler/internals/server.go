@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+var (
+	evictionProbability = 0.1
+)
+
 type Service struct {
 	ID                string
 	Name              string
@@ -13,22 +17,22 @@ type Service struct {
 	ResourceUtilized  float64
 	ResourceRequested float64
 	ResourceLimit     float64
+	Latency           float64
+	QPS               float64
 }
 
 type ResourceScheduler struct {
 	sync.Mutex
-	Services     map[string]*Service
-	Alpha        float64
-	F            float64
-	SharedSlices float64
+	Services                map[string]*Service
+	Alpha                   float64
+	TotalAllocableResources int64
 }
 
-func NewResourceScheduler(alpha, f float64) *ResourceScheduler {
+func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceScheduler {
 	return &ResourceScheduler{
-		Services:     make(map[string]*Service),
-		Alpha:        alpha,
-		F:            f,
-		SharedSlices: 0,
+		Services:                make(map[string]*Service),
+		Alpha:                   alpha,
+		TotalAllocableResources: int64(allocableResources),
 	}
 }
 
@@ -42,7 +46,6 @@ func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64)
 		Credits: initialCredits,
 	}
 	rs.Services[id] = service
-	rs.SharedSlices += (1 - rs.Alpha) * rs.F
 }
 
 func (rs *ResourceScheduler) UpdateServiceUsage(id string, resourceUtilized float64) {
@@ -97,6 +100,32 @@ func (rs *ResourceScheduler) UpdateServiceRequest(id string, request float64) {
 	service.ResourceRequested = request
 }
 
+func (rs *ResourceScheduler) UpdateServiceLatency(id string, latency float64) {
+	rs.Lock()
+	defer rs.Unlock()
+
+	service, ok := rs.Services[id]
+	if !ok {
+		fmt.Printf("Service with id %s does not exist\n", id)
+		return
+	}
+
+	service.Latency = latency
+}
+
+func (rs *ResourceScheduler) UpdateServiceQPS(id string, QPS float64) {
+	rs.Lock()
+	defer rs.Unlock()
+
+	service, ok := rs.Services[id]
+	if !ok {
+		fmt.Printf("Service with id %s does not exist\n", id)
+		return
+	}
+
+	service.QPS = QPS
+}
+
 func (rs *ResourceScheduler) GetServiceCredits(id string) float64 {
 	rs.Lock()
 	defer rs.Unlock()
@@ -128,15 +157,18 @@ func (rs *ResourceScheduler) Schedule() {
 
 	demand := make(map[string]float64)
 	for id, service := range rs.Services {
-		demand[id] = service.ResourceRequested
+		//TODO: replace demand calculation with the actual model
+		demand[id] = service.ResourceRequested / evictionProbability
 	}
-
+	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
+	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
 	donatedSlices := make(map[string]float64)
 	alloc := make(map[string]float64)
 
 	for id := range rs.Services {
-		donatedSlices[id] = math.Max(0, rs.Alpha*rs.F-demand[id])
-		alloc[id] = math.Min(demand[id], rs.Alpha*rs.F)
+		donatedSlices[id] = math.Max(0, rs.Alpha*fairShare-demand[id])
+		alloc[id] = math.Min(demand[id], rs.Alpha*fairShare)
+		rs.Services[id].Credits += (1 - rs.Alpha) * fairShare
 	}
 
 	donors := make([]string, 0)
@@ -153,40 +185,41 @@ func (rs *ResourceScheduler) Schedule() {
 		}
 	}
 
-	for len(borrowers) > 0 && (sumDonatedSlices(donatedSlices) > 0 || rs.SharedSlices > 0) {
+	for len(borrowers) > 0 && (sumDonatedSlices(donatedSlices) > 0 || sharedSlices > 0) {
 		// Find the borrower with maximum credits
 		selectedBorrower := selectBorrowerWithMaxCredits(rs.Services, borrowers)
 
-		var requiredAmount = 1.0
+		borrowerRequiredAmount := math.Max(0, demand[selectedBorrower]-alloc[selectedBorrower]) //unit: milliCPU, 1000 milliCPU = 1 CPU
+		borrowerGainedAmount := borrowerRequiredAmount
 		if len(donors) > 0 {
 			// Find the donor with minimum credits
 			selectedDonor := selectDonorWithMinCredits(rs.Services, donors)
-			requiredAmount = math.Min(requiredAmount, donatedSlices[selectedDonor])
-			// in case the current donor has less than 1 required amount
-			rs.Services[selectedDonor].Credits += requiredAmount
-			donatedSlices[selectedDonor] -= requiredAmount
+			borrowerGainedAmount = math.Min(borrowerRequiredAmount, donatedSlices[selectedDonor])
+			rs.Services[selectedDonor].Credits += borrowerGainedAmount
+			donatedSlices[selectedDonor] -= borrowerGainedAmount
 			// Update the set of donors
 			if donatedSlices[selectedDonor] == 0 {
 				donors = removeFromSlice(donors, selectedDonor)
 			}
 		} else {
-			rs.SharedSlices -= requiredAmount
+			sharedSlices -= borrowerGainedAmount
 		}
 
-		alloc[selectedBorrower] += requiredAmount
-		rs.Services[selectedBorrower].Credits -= requiredAmount
+		alloc[selectedBorrower] += borrowerGainedAmount
+		rs.Services[selectedBorrower].Credits -= borrowerGainedAmount
 
 		// Update the set of borrowers
-		if alloc[selectedBorrower] == demand[selectedBorrower] || rs.Services[selectedBorrower].Credits == 0 {
+		if alloc[selectedBorrower] >= demand[selectedBorrower] || rs.Services[selectedBorrower].Credits == 0 {
 			borrowers = removeFromSlice(borrowers, selectedBorrower)
 		}
 	}
 
-	for serviceID, allocation := range alloc {
-		rs.Services[serviceID].ResourceLimit = allocation
+	for serviceID, resourceAllocation := range alloc {
+		rs.Services[serviceID].ResourceLimit = resourceAllocation
 	}
 }
 
+// TODO: implement this with heap for better performance
 func selectBorrowerWithMaxCredits(services map[string]*Service, borrowers []string) string {
 	maxCredits := float64(-1)
 	var selectedBorrower string
