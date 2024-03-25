@@ -1,6 +1,6 @@
 # Usage of Demand Estimator
 Follow the steps to use the demand estimator. \
-Step1: install python and pip on the machine \
+Step 1: install python and pip on the machine \
 Step 2: use `pip install -r requirements.txt` to install dependencies required \
 Step 3: `cd` to the Models directory and start the service by running `python3 main.py` or `python main.py` based on the naming of python on the machine \
 Step 4: start using the api
