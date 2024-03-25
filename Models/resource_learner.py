@@ -37,6 +37,8 @@ class ResourceLearner(object):
         self.mq.offer(timestamp, data)
         # self.lock.release()
 
+        return 0
+
     def get_model(self):
         self.update()
         return self.performance_estimator.get_model()
@@ -93,10 +95,10 @@ class ResourceLearner(object):
         self.update()
         if self.initialized is False:
             return None
-        # print(resource_param)
+        # print("resource param before append:", resource_param)
         # resource_param.extend(self.load_estimator.predict().tolist())
         resource_param = np.append(resource_param, self.load_estimator.predict())
-        # print(resource_param)
+        # print("resource param after append:", resource_param)
         return self.performance_estimator.predict(resource_param)
 
 

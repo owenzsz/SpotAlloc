@@ -46,6 +46,7 @@ class PerformanceEstimator(object):
     def predict(self, performance_param):
         # print(performance_param)
         performance_param = np.array(performance_param).reshape(1,-1)
+        # print("performance param:", performance_param)
         return self.model.predict(performance_param)
 
 

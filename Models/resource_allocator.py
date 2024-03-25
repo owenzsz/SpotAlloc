@@ -4,6 +4,11 @@ from preemption_estimator import PreemptionEstimator
 from scipy.optimize import minimize
 import numpy as np
 
+import threading
+
+SUCCESS = 100
+MICROSERICE_ALREADY_REGISTERED = 101
+
 # application-level resource allocator
 class ResourceAllocator(object):
     def __init__(self):
@@ -20,7 +25,8 @@ class ResourceAllocator(object):
 
     def log_data(self, identifier, timestamp, data):
         id = self.id_mapping[identifier]
-        self.resource_learner_pool[id].put_data(timestamp, data)
+        if self.resource_learner_pool[id].put_data(timestamp, data) == 0:
+            return SUCCESS
     
     def register_microservice(self, identifier, max_price=-1):
         if identifier not in self.id_mapping:
@@ -28,6 +34,9 @@ class ResourceAllocator(object):
             self.n_microservices += 1
             self.resource_learner_pool.append(ResourceLearner())
             self.preemption_estimator_pool.append(PreemptionEstimator(max_price=-1))
+            return SUCCESS
+        else:
+            return MICROSERICE_ALREADY_REGISTERED
         
     def start_poll_one(self, identifier):
         id = self.id_mapping[identifier]
@@ -37,6 +46,11 @@ class ResourceAllocator(object):
     def start_poll_all(self):
         for i in range(self.n_microservices):
             self.preemption_estimator_pool[i].poll_price()
+        
+    def start_poll(self, identifier):
+        thread = threading.Thread(target=self.start_poll_one, args=(identifier))
+        print("Started pricing polling service for microservice", identifier)
+        thread.start()
 
     # def get_estimation(self):
     #     self.preemptions = [self.preemption_estimator_pool[i].compute_preemption_prob() for i in range(self.n_microservices)]
@@ -51,7 +65,7 @@ class ResourceAllocator(object):
         # print(self.resource_learner_pool[0].predict_performance(a))
         # print([self.resource_learner_pool[i].predict_performance(a) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
 
-        return -np.sum([self.resource_learner_pool[i].predict_performance(a) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
+        return -np.sum([self.resource_learner_pool[i].predict_performance(a[i]) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
 
     def constraint(self, a):
         return 1.0 - np.sum(a)
@@ -71,6 +85,7 @@ class ResourceAllocator(object):
         # Constraint dictionary
         constraints = {'type': 'eq', 'fun': self.constraint}
 
+        print("initial a:", initial_a)
         # Minimize the negative of the objective function to maximize
         result = minimize(self.objective_function, initial_a, bounds=bounds, constraints=constraints)
 
@@ -92,18 +107,57 @@ class ResourceAllocator(object):
         return optimized_demands / preemptions
 
 
-ra = ResourceAllocator()
-ra.register_microservice("ms1")
-ra.log_data("ms1", 1, {"load": [10], "resource": [40], "performance":[100]})
-ra.log_data("ms1", 1, {"load": [10], "resource": [40], "performance":[100]})
-ra.log_data("ms1", 2, {"load": [20], "resource": [60], "performance":[200]})
-ra.log_data("ms1", 3, {"load": [30], "resource": [70], "performance":[300]})
+if __name__ == '__main__':
+    # ra = ResourceAllocator()
+    # ra.register_microservice("ms1")
+    # ra.log_data("ms1", 1, {"load": [10], "resource": [40], "performance":[100]})
+    # ra.log_data("ms1", 1, {"load": [10], "resource": [40], "performance":[100]})
+    # ra.log_data("ms1", 2, {"load": [20], "resource": [60], "performance":[200]})
+    # ra.log_data("ms1", 3, {"load": [30], "resource": [70], "performance":[300]})
 
-# print("Enter 1")
+    # # print("Enter 1")
 
-ret = ra.allocate()
+    # ret = ra.allocate()
 
 
-print(ret)
+    # print(ret)
 
-# ra.start_poll_all()
+    # # ra.start_poll_all()
+
+    ra = ResourceAllocator()
+    ra.register_microservice("a")
+    ra.start_poll("a")
+
+    # print("enter 1")
+
+    ra.log_data("a", 1, {"load": [10], "resource": [40], "performance":[100]})
+    ra.log_data("a", 2, {"load": [20], "resource": [60], "performance":[200]})
+
+    # print("enter 2")
+
+    ret = ra.allocate()
+
+    # print("enter 3")
+    print(ret)
+
+
+    ra.register_microservice("b")
+    ra.start_poll("b")
+
+    ra.log_data("b", 1, {"load": [10], "resource": [40], "performance":[100]})
+    ra.log_data("b", 2, {"load": [20], "resource": [60], "performance":[200]})
+
+    ret = ra.allocate()
+    print(ret)
+
+
+    ra.register_microservice("c")
+    ra.start_poll("c")
+
+    ra.log_data("c", 1, {"load": [10], "resource": [40], "performance":[100]})
+    ra.log_data("c", 2, {"load": [20], "resource": [60], "performance":[200]})
+    ra.log_data("c", 2, {"load": [20], "resource": [60], "performance":[200]})
+    ra.log_data("c", 3, {"load": [30], "resource": [70], "performance":[300]})
+
+    ret = ra.allocate()
+    print(ret)

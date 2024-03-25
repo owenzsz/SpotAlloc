@@ -14,7 +14,8 @@ class LoadEstimator(object):
         self.phi = phi
         self.theta = theta
 
-        self.data = np.empty((0,))
+        # self.data = np.empty((0,))
+        self.data = np.array([])
 
         self.model = None
 
@@ -27,17 +28,30 @@ class LoadEstimator(object):
     #     self.model = self.model.fit()
 
     def load_data(self, load_data):
-        self.data = load_data
+        # print(self.model)
+        # print(load_data)
+        if self.model is None and len(load_data) == 1:
+            # print("Enter 3")
+            self.data = np.append(load_data, load_data)
+        else:
+            self.data = load_data
     
     def get_model(self):
         return self.model
 
     def update(self):
+        # print("Enter update")
         if self.model is None:
+            
+            # print(self.data)
             self.model = sm.tsa.ARIMA(self.data, order=(1, 0,1))
+            # print("get 1")
+            # print(self.data.shape)
             self.model = self.model.fit()
+            # print("get 2")
         else:
-            self.model = self.model.append(self.data)
+            # self.model = self.model.append(self.data)
+            self.data = np.append(self.data, load_data)
 
     def predict(self):
         forecast_results = self.model.get_forecast(steps=1)  # Forecast 10 future values
@@ -57,19 +71,20 @@ class LoadEstimator(object):
         return forecast_values
 
 
-# le = LoadEstimator()
+if __name__ == '__main__':
+    le = LoadEstimator()
 
-# load = np.array([10,20,30,40,50,60])
-# le.load_data(load)
-# le.update()
+    load = np.array([10])
+    le.load_data(load)
+    le.update()
 
-# v,l,u = le.predict()
-# print(v, l, u)
+    # v,l,u = le.predict()
+    # print(v, l, u)
 
 
-# load = np.array([70,80,90,100])
-# le.load_data(load)
-# le.update()
+    # load = np.array([70,80,90,100])
+    # le.load_data(load)
+    # le.update()
 
-# v,l,u = le.predict()
-# print(v, l, u)
+    # v,l,u = le.predict()
+    # print(v, l, u)
