@@ -15,6 +15,11 @@ Step 4: start using the api
 | :-----------: | :-------------:| 
 | identifier       |   string      | 
 
+**sample request body:**
+{
+    "identifier": "c"
+}
+
 ## log
 **description:** This url logs corresponding timestamp and data into the storage for that microservice. This step is only legal after the corresponding microservice is registered \
 **request url:** /log \
@@ -26,11 +31,27 @@ Step 4: start using the api
 | timestamp       |   int      | 
 | data       |   JSON      | 
 
+**sample request body:**
+{
+    "identifier": "a",
+    "timestamp": 1,
+    "data": {"load": [10], "resource": [130], "performance":[200]}
+}
+
 ## allocate
 **description:** This url estimate the demands for each microservice based on the logged data \
 **request url:** /allocate \
 **request type:** GET \
-**request return:**
+**request reponse:**
 | name | type |
 | :-----------: | :-------------:| 
 | demands       |   list      |
+
+**sample request response:**
+{
+    "demands": [
+        10,
+        20,
+        30.5
+    ]
+}
