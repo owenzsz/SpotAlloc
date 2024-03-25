@@ -6,10 +6,6 @@ import (
 	"sync"
 )
 
-var (
-	evictionProbability = 0.1
-)
-
 type Service struct {
 	ID                string
 	Name              string
@@ -156,10 +152,29 @@ func (rs *ResourceScheduler) Schedule() {
 	defer rs.Unlock()
 
 	demand := make(map[string]float64)
-	for id, service := range rs.Services {
-		//TODO: replace demand calculation with the actual model
-		demand[id] = service.ResourceRequested / evictionProbability
+	mp := NewModelProxy("http://localhost")
+	// Predict the demand for each service
+	var wg sync.WaitGroup
+	for id := range rs.Services {
+		wg.Add(1)
+		go func(serviceID string) {
+			defer wg.Done()
+			response, err := mp.Predict(serviceID)
+			if err != nil {
+				fmt.Printf("error predicting demand for service %s: %v\n", serviceID, err)
+				return
+			}
+			currDemand, ok := response["demand"].(float64)
+			if !ok {
+				fmt.Printf("invalid demand value for service %s\n", serviceID)
+				return
+			}
+			rs.Lock()
+			demand[serviceID] = currDemand
+			rs.Unlock()
+		}(id)
 	}
+	wg.Wait()
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
 	donatedSlices := make(map[string]float64)
