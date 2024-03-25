@@ -65,7 +65,7 @@ class ResourceAllocator(object):
         # print(self.resource_learner_pool[0].predict_performance(a))
         # print([self.resource_learner_pool[i].predict_performance(a) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
 
-        return -np.sum([self.resource_learner_pool[i].predict_performance(a) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
+        return -np.sum([self.resource_learner_pool[i].predict_performance(a[i]) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
 
     def constraint(self, a):
         return 1.0 - np.sum(a)
@@ -85,6 +85,7 @@ class ResourceAllocator(object):
         # Constraint dictionary
         constraints = {'type': 'eq', 'fun': self.constraint}
 
+        print("initial a:", initial_a)
         # Minimize the negative of the objective function to maximize
         result = minimize(self.objective_function, initial_a, bounds=bounds, constraints=constraints)
 
@@ -127,8 +128,36 @@ if __name__ == '__main__':
     ra.register_microservice("a")
     ra.start_poll("a")
 
+    # print("enter 1")
+
     ra.log_data("a", 1, {"load": [10], "resource": [40], "performance":[100]})
     ra.log_data("a", 2, {"load": [20], "resource": [60], "performance":[200]})
+
+    # print("enter 2")
+
+    ret = ra.allocate()
+
+    # print("enter 3")
+    print(ret)
+
+
+    ra.register_microservice("b")
+    ra.start_poll("b")
+
+    ra.log_data("b", 1, {"load": [10], "resource": [40], "performance":[100]})
+    ra.log_data("b", 2, {"load": [20], "resource": [60], "performance":[200]})
+
+    ret = ra.allocate()
+    print(ret)
+
+
+    ra.register_microservice("c")
+    ra.start_poll("c")
+
+    ra.log_data("c", 1, {"load": [10], "resource": [40], "performance":[100]})
+    ra.log_data("c", 2, {"load": [20], "resource": [60], "performance":[200]})
+    ra.log_data("c", 2, {"load": [20], "resource": [60], "performance":[200]})
+    ra.log_data("c", 3, {"load": [30], "resource": [70], "performance":[300]})
 
     ret = ra.allocate()
     print(ret)

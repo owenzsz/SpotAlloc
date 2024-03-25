@@ -56,12 +56,14 @@ class PreemptionEstimator(object):
     def poll_price(self):
         # print("Enter poll_price")
         self.mutex_lock.acquire()
+        # print("poll obtain lock")
         # print("get lock")
         while True:
             # print("enter loop")
             curr_time = datetime.datetime.now()
-
+            # print("request price")
             price = self.get_spot_instance_price('us-west-2', 'm5.large', curr_time)
+            # print("get price")
             # print(price)
             if price != None:
                 self.time_deltas = np.append(self.time_deltas, curr_time.timestamp())
@@ -77,9 +79,11 @@ class PreemptionEstimator(object):
 
             if self.predict_intention:
                 self.mutex_lock.release()
+                # print("poll release lock")
                 time.sleep(SLEEP_TIME)
 
                 self.mutex_lock.acquire()
+                # print("poll obtain lock")
             else:
                 time.sleep(SLEEP_TIME)
     
@@ -109,10 +113,12 @@ class PreemptionEstimator(object):
         print(f"Probability of price exceeding the function value at time {specific_time}: {probability}")
     
     def compute_preemption_prob(self):
+        # print("Enter compute_preemption_prob")
         self.predict_intention = True
         self.mutex_lock.acquire()
 
         prob = 0
+        print(self.max_price)
         if self.max_price == -1:
             prob = self.compute_preempt_prob_without_max()
         else:
@@ -120,13 +126,31 @@ class PreemptionEstimator(object):
         
         self.predict_intention = False
         self.mutex_lock.release()
+
+        # print("leaving compute_preemption_prob")
         return prob
 
+if __name__ == '__main__':
+    P = PreemptionEstimator(10)
+    # # P.poll_price()
 
-# P = PreemptionEstimator(10)
-# # P.poll_price()
+    # P.add_data()
+    # P.compute_preemption_prob()
 
-# P.add_data()
-# P.compute_preemption_prob()
+    # print(P.prob)
 
-# print(P.prob)
+    # curr_time = datetime.datetime.now()
+    # price = P.get_spot_instance_price('us-west-2', 'm5.mdeium', curr_time)
+    # print(price)
+
+    # client = boto3.client('ec2', region_name='us-west-2')
+    # response = client.describe_spot_price_history(
+    #     InstanceTypes=['m5.mdeium'],
+    #     ProductDescriptions=['Linux/UNIX'],
+    #     StartTime=datetime.datetime.now().isoformat()
+    # )
+    # if 'SpotPriceHistory' in response:
+    #     spot_price_history = response['SpotPriceHistory']
+    #     if spot_price_history:
+    #         return spot_price_history[0]['SpotPrice']
+    # return None
