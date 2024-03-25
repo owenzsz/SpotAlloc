@@ -37,6 +37,8 @@ class ResourceLearner(object):
         self.mq.offer(timestamp, data)
         # self.lock.release()
 
+        return 0
+
     def get_model(self):
         self.update()
         return self.performance_estimator.get_model()

@@ -54,11 +54,15 @@ class PreemptionEstimator(object):
         return None
 
     def poll_price(self):
+        # print("Enter poll_price")
         self.mutex_lock.acquire()
+        # print("get lock")
         while True:
+            # print("enter loop")
             curr_time = datetime.datetime.now()
 
             price = self.get_spot_instance_price('us-west-2', 'm5.large', curr_time)
+            # print(price)
             if price != None:
                 self.time_deltas = np.append(self.time_deltas, curr_time.timestamp())
                 self.prices = np.append(self.prices, price)
