@@ -51,7 +51,7 @@ class LoadEstimator(object):
             # print("get 2")
         else:
             # self.model = self.model.append(self.data)
-            self.data = np.append(self.data, load_data)
+            self.model = self.model.append(self.data)
 
     def predict(self):
         forecast_results = self.model.get_forecast(steps=1)  # Forecast 10 future values
