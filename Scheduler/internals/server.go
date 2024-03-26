@@ -6,10 +6,6 @@ import (
 	"sync"
 )
 
-var (
-	evictionProbability = 0.1
-)
-
 type Service struct {
 	ID                string
 	Name              string
@@ -26,6 +22,7 @@ type ResourceScheduler struct {
 	Services                map[string]*Service
 	Alpha                   float64
 	TotalAllocableResources int64
+	modelProxy              *ModelProxy
 }
 
 func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceScheduler {
@@ -33,6 +30,7 @@ func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceSche
 		Services:                make(map[string]*Service),
 		Alpha:                   alpha,
 		TotalAllocableResources: int64(allocableResources),
+		modelProxy:              NewModelProxy("localhost"),
 	}
 }
 
@@ -46,6 +44,10 @@ func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64)
 		Credits: initialCredits,
 	}
 	rs.Services[id] = service
+	err := rs.modelProxy.RegisterService(id)
+	if err != nil {
+		fmt.Printf("Failed to register service to model proxy: %v\n", err)
+	}
 }
 
 func (rs *ResourceScheduler) UpdateServiceUsage(id string, resourceUtilized float64) {
@@ -151,14 +153,39 @@ func (rs *ResourceScheduler) GetAllServices() []*Service {
 	return services
 }
 
+func (rs *ResourceScheduler) LogServiceMetricsToModelProxy() error {
+	rs.Lock()
+	defer rs.Unlock()
+
+	for id, service := range rs.Services {
+		err := rs.modelProxy.UpdateService(id, 1, map[string]interface{}{
+			"performance": service.Latency,
+			"load":        service.QPS,
+			"resource":    service.ResourceUtilized,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to log service metrics to model proxy: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (rs *ResourceScheduler) Schedule() {
 	rs.Lock()
 	defer rs.Unlock()
 
 	demand := make(map[string]float64)
-	for id, service := range rs.Services {
-		//TODO: replace demand calculation with the actual model
-		demand[id] = service.ResourceRequested / evictionProbability
+	demandList, err := rs.modelProxy.PredictDemand()
+	if err != nil || demandList == nil {
+		fmt.Printf("Error predicting demand: %v\n", err)
+		return
+	}
+
+	index := 0
+	for id := range rs.Services {
+		demand[id] = demandList[index]
+		index++
 	}
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare

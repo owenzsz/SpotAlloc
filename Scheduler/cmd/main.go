@@ -74,6 +74,11 @@ func main() {
 			continue
 		}
 
+		err = resourceScheduler.LogServiceMetricsToModelProxy()
+		if err != nil {
+			fmt.Printf("Failed to log service metrics to model proxy: %v \n", err)
+		}
+
 		fmt.Println("Running resource scheduler...")
 		resourceScheduler.Schedule()
 

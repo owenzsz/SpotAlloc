@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/prometheus/client_golang/api"
@@ -73,7 +74,13 @@ func (kc *KubernetesClient) UpdateServicePerformanceMetrics(resourceScheduler *R
 		if err != nil {
 			return fmt.Errorf("failed to get performance metrics for service %s when updating the metrics: %v", service.Name, err)
 		}
-		fmt.Printf("Service: %s, Latency: %f, QPS: %f\n", service.Name, latency, QPS)
+		if math.IsNaN(latency) {
+			latency = 0
+		}
+		if math.IsNaN(QPS) {
+			QPS = 0
+		}
+		// fmt.Printf("Service: %s, Latency: %f, QPS: %f\n", service.Name, latency, QPS)
 		resourceScheduler.UpdateServiceLatency(service.ID, latency)
 		resourceScheduler.UpdateServiceQPS(service.ID, QPS)
 	}
