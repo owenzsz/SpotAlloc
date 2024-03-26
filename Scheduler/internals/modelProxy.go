@@ -9,11 +9,15 @@ import (
 )
 
 var (
-	defaultPort = "8080"
+	defaultPort = "3000"
 )
 
 type ModelProxy struct {
 	endPointURL string
+}
+
+type DemandResponse struct {
+	Demands []float64 `json:"demands"`
 }
 
 func NewModelProxy(baseURL string) *ModelProxy {
@@ -22,16 +26,49 @@ func NewModelProxy(baseURL string) *ModelProxy {
 	}
 }
 
-func (mp *ModelProxy) AddService(serviceID string) error {
-	url := fmt.Sprintf("%s/services/%s", mp.endPointURL, serviceID)
-	req, err := http.NewRequest("POST", url, nil)
+func (mp *ModelProxy) RegisterService(serviceID string) error {
+	url := fmt.Sprintf("%s/register", mp.endPointURL)
+	// fmt.Println(url)
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"identifier": serviceID,
+	})
+	// fmt.Println("RequestBody:", string(requestBody))
+
+	if err != nil {
+		return fmt.Errorf("error marshaling request body: %v", err)
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
+	defer resp.Body.Close()
 
-	resp, err := http.DefaultClient.Do(req)
+	// body, _ := io.ReadAll(resp.Body)
+	// fmt.Println("Response Status:", resp.StatusCode)
+	// fmt.Println("Response Body:", string(body))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (mp *ModelProxy) UpdateService(serviceID string, timestamp int64, inputData map[string]interface{}) error {
+	url := fmt.Sprintf("%s/log", mp.endPointURL)
+	requestMap := map[string]interface{}{
+		"identifier": serviceID,
+		"timestamp":  1,
+		"data":       inputData,
+	}
+	// fmt.Printf("RequestMap: %v\n", requestMap)
+	requestBody, err := json.Marshal(requestMap)
 	if err != nil {
-		return fmt.Errorf("error sending request: %v", err)
+		return fmt.Errorf("error marshaling request body: %v", err)
+	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -41,40 +78,9 @@ func (mp *ModelProxy) AddService(serviceID string) error {
 	return nil
 }
 
-func (mp *ModelProxy) UpdateService(serviceID string, inputData map[string]interface{}) error {
-	url := fmt.Sprintf("%s/services/%s", mp.endPointURL, serviceID)
-	jsonData, err := json.Marshal(inputData)
-	if err != nil {
-		return fmt.Errorf("error marshaling input data: %v", err)
-	}
-
-	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("error creating request: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error sending request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
-func (mp *ModelProxy) Predict(serviceID string) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s/services/%s/predict", mp.endPointURL, serviceID)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
+func (mp *ModelProxy) PredictDemand() ([]float64, error) {
+	url := fmt.Sprintf("%s/allocate", mp.endPointURL)
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %v", err)
 	}
@@ -89,11 +95,12 @@ func (mp *ModelProxy) Predict(serviceID string) (map[string]interface{}, error) 
 		return nil, fmt.Errorf("error reading response body: %v", err)
 	}
 
-	var result map[string]interface{}
-	err = json.Unmarshal(body, &result)
+	var demands DemandResponse
+	err = json.Unmarshal(body, &demands)
+	// fmt.Println("Demands:", demands)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling response: %v", err)
 	}
 
-	return result, nil
+	return demands.Demands, nil
 }
