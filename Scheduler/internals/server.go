@@ -177,14 +177,16 @@ func (rs *ResourceScheduler) LogServiceMetricsToModelProxy() error {
 	return nil
 }
 
-func (rs *ResourceScheduler) Schedule(algorithm algorithm) error {
+func (rs *ResourceScheduler) Schedule(algorithmName string) error {
 	var err error
-	if algorithm == CreditAlgorithm {
+	if algorithmName == "credit" {
 		err = rs.CreditBasedSchedule()
-	} else if algorithm == FairAlgorithm {
+	} else if algorithmName == "fair" {
 		err = rs.FairSchedule()
-	} else if algorithm == MaxMinAlgorithm {
+	} else if algorithmName == "maxmin" {
 		err = rs.MaxMinSchedule()
+	} else {
+		err = fmt.Errorf("unknown scheduling algorithm: %s", algorithmName)
 	}
 	return err
 }

@@ -2,14 +2,6 @@ package scheduler
 
 import "math"
 
-type algorithm string
-
-const (
-	CreditAlgorithm algorithm = "credit"
-	FairAlgorithm   algorithm = "fair"
-	MaxMinAlgorithm algorithm = "maxmin"
-)
-
 func sumDonatedSlices(donatedSlices map[string]float64) float64 {
 	sum := 0.0
 	for _, slices := range donatedSlices {

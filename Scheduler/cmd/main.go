@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -11,7 +12,7 @@ import (
 )
 
 func main() {
-
+	algorithmName := flag.String("algo", "credit", "Name of the scheduling algorithm")
 	//check if the kubeconfig file exists
 	if _, err := os.Stat("kubeconfigr"); err == nil {
 		os.Remove("kubeconfig")
@@ -80,7 +81,7 @@ func main() {
 		}
 
 		fmt.Println("Running resource scheduler...")
-		err = resourceScheduler.Schedule(scheduler.CreditAlgorithm)
+		err = resourceScheduler.Schedule(*algorithmName)
 		if err != nil {
 			fmt.Printf("Failed to run resource scheduler: %v \n", err)
 			continue
