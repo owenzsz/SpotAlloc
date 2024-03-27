@@ -3,6 +3,7 @@ package scheduler
 import (
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 )
 
@@ -23,6 +24,11 @@ type ResourceScheduler struct {
 	Alpha                   float64
 	TotalAllocableResources int64
 	modelProxy              *ModelProxy
+}
+
+type DemandPair struct {
+	ServiceID string
+	Demand    float64
 }
 
 func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceScheduler {
@@ -171,15 +177,26 @@ func (rs *ResourceScheduler) LogServiceMetricsToModelProxy() error {
 	return nil
 }
 
-func (rs *ResourceScheduler) Schedule() {
+func (rs *ResourceScheduler) Schedule(algorithm algorithm) error {
+	var err error
+	if algorithm == CreditAlgorithm {
+		err = rs.CreditBasedSchedule()
+	} else if algorithm == FairAlgorithm {
+		err = rs.FairSchedule()
+	} else if algorithm == MaxMinAlgorithm {
+		err = rs.MaxMinSchedule()
+	}
+	return err
+}
+
+func (rs *ResourceScheduler) CreditBasedSchedule() error {
 	rs.Lock()
 	defer rs.Unlock()
 
 	demand := make(map[string]float64)
 	demandList, err := rs.modelProxy.PredictDemand()
 	if err != nil || demandList == nil {
-		fmt.Printf("Error predicting demand: %v\n", err)
-		return
+		return fmt.Errorf("error predicting demand: %v", err)
 	}
 
 	index := 0
@@ -244,31 +261,71 @@ func (rs *ResourceScheduler) Schedule() {
 	for serviceID, resourceAllocation := range alloc {
 		rs.Services[serviceID].ResourceLimit = resourceAllocation
 	}
+	return nil
 }
 
-// TODO: implement this with heap for better performance
-func selectBorrowerWithMaxCredits(services map[string]*Service, borrowers []string) string {
-	maxCredits := float64(-1)
-	var selectedBorrower string
-	for _, borrower := range borrowers {
-		c := services[borrower].Credits
-		if c > maxCredits {
-			maxCredits = c
-			selectedBorrower = borrower
-		}
+func (rs *ResourceScheduler) FairSchedule() error {
+	rs.Lock()
+	defer rs.Unlock()
+
+	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
+	for _, service := range rs.Services {
+		service.ResourceLimit = fairShare
 	}
-	return selectedBorrower
+	return nil
 }
 
-func selectDonorWithMinCredits(services map[string]*Service, donors []string) string {
-	minCredits := math.MaxFloat64
-	var selectedDonor string
-	for _, donor := range donors {
-		c := services[donor].Credits
-		if c < minCredits {
-			minCredits = c
-			selectedDonor = donor
+func (rs *ResourceScheduler) MaxMinSchedule() error {
+	demands := make([]*DemandPair, 0)
+	demandList, err := rs.modelProxy.PredictDemand()
+	if err != nil || demandList == nil {
+		return fmt.Errorf("error predicting demand: %v", err)
+	}
+	index := 0
+	for id := range rs.Services {
+		newPair := DemandPair{
+			ServiceID: id,
+			Demand:    demandList[index],
+		}
+		demands = append(demands, &newPair)
+		index++
+	}
+
+	n := len(demands)
+	sort.Slice(demands, func(i, j int) bool {
+		return demands[i].Demand < demands[j].Demand
+	})
+	allocation := make(map[string]float64)
+	capacity := float64(rs.TotalAllocableResources)
+
+	var allocatedSum float64
+	var remainingServicesToAllocation int
+
+	for i := 0; i < n; i++ {
+		remainingServicesToAllocation = n - i
+		// Calculate the tentative equal share for the remaining sources
+		equalShare := (capacity - allocatedSum) / float64(remainingServicesToAllocation)
+
+		if demands[i].Demand <= equalShare {
+			// If the source's demand is less than or equal to the equal share,
+			// allocate the demanded amount to the source
+			allocation[demands[i].ServiceID] = demands[i].Demand
+			allocatedSum += demands[i].Demand
+		} else {
+			// If the source's demand is greater than the equal share,
+			// allocate the equal share to the source and distribute the remaining
+			// resources among the remaining sources
+			for j := i; j < n; j++ {
+				otherDemand := demands[j]
+				allocation[otherDemand.ServiceID] = equalShare
+			}
+			break
+		}
+		for serviceID, resourceAllocation := range allocation {
+			rs.Services[serviceID].ResourceLimit = resourceAllocation
 		}
 	}
-	return selectedDonor
+
+	return nil
+
 }

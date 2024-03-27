@@ -80,7 +80,11 @@ func main() {
 		}
 
 		fmt.Println("Running resource scheduler...")
-		resourceScheduler.Schedule()
+		err = resourceScheduler.Schedule(scheduler.CreditAlgorithm)
+		if err != nil {
+			fmt.Printf("Failed to run resource scheduler: %v \n", err)
+			continue
+		}
 
 		fmt.Println("Updating resource limits...")
 		err = kubernetesClient.UpdateResourceRequestsAndLimits(resourceScheduler)
