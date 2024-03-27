@@ -8,11 +8,17 @@ import (
 	"os/exec"
 	"time"
 
-	scheduler "github.com/owenzsz/SpotAllocScheduler/internals"
+	logger "github.com/owenzsz/SpotAllocScheduler/internals/logger"
+	scheduler "github.com/owenzsz/SpotAllocScheduler/internals/scheduler"
 )
 
 func main() {
+	// Parse the command line arguments
 	algorithmName := flag.String("algo", "credit", "Name of the scheduling algorithm")
+
+	//set up logger
+	logger.InitLogger("logs", "scheduler.log")
+
 	//check if the kubeconfig file exists
 	if _, err := os.Stat("kubeconfigr"); err == nil {
 		os.Remove("kubeconfig")
