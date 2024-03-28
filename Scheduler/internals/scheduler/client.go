@@ -48,7 +48,7 @@ func NewKubernetesClient() (*KubernetesClient, error) {
 	}, nil
 }
 
-func (kc *KubernetesClient) AddServicesIfNeeded(resourceScheduler *ResourceScheduler) error {
+func (kc *KubernetesClient) AddServicesIfNeeded(resourceScheduler *ResourceScheduler, SLOMap map[string]int64) error {
 	serviceList, err := kc.clientset.CoreV1().Services(defaultNameSpace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list services: %v", err)
@@ -58,10 +58,13 @@ func (kc *KubernetesClient) AddServicesIfNeeded(resourceScheduler *ResourceSched
 		if service.Name == "kubernetes" || service.Name == "prometheus" {
 			continue // Skip the default "kubernetes" and the "prometheus" service
 		}
-		if _, ok := resourceScheduler.Services[string(service.UID)]; ok {
+		if _, ok := resourceScheduler.Services[service.Name]; ok {
 			continue // Skip the services that are already added
 		}
-		resourceScheduler.AddService(string(service.UID), service.Name, 100)
+		if _, ok := SLOMap[service.Name]; !ok {
+			continue // Skip the services that are not in the SLO map
+		}
+		resourceScheduler.AddService(service.Name, service.Name, 100, SLOMap[service.Name])
 	}
 
 	return nil
@@ -104,8 +107,7 @@ func (kc *KubernetesClient) UpdateResourceUtilization(resourceScheduler *Resourc
 				totalCPUUtilization += container.Usage.Cpu().MilliValue()
 			}
 		}
-
-		resourceScheduler.UpdateServiceUsage(service.ID, float64(totalCPUUtilization))
+		resourceScheduler.UpdateServiceUsage(service.ID, totalCPUUtilization)
 	}
 
 	return nil
@@ -120,7 +122,6 @@ func (kc *KubernetesClient) UpdateResourceRequestsAndLimits(resourceScheduler *R
 		if err != nil {
 			return fmt.Errorf("failed to get deployment for service %s: %v", service.Name, err)
 		}
-
 		deployment.Spec.Template.Spec.Containers[0].Resources.Limits = corev1.ResourceList{
 			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", int64(service.ResourceLimit))),
 		}

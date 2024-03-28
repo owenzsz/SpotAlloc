@@ -1,0 +1,22 @@
+[
+    {
+      "serviceName": "my-microservice-1",
+      "slo": 150
+    },
+    {
+      "serviceName": "my-microservice-2",
+      "slo": 250
+    },
+    {
+      "serviceName": "my-microservice-3",
+      "slo": 80
+    },
+    {
+      "serviceName": "my-microservice-4",
+      "slo": 200
+    },
+    {
+      "serviceName": "my-microservice-5",
+      "slo": 120
+    }
+  ]
