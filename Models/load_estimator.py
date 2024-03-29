@@ -78,6 +78,14 @@ if __name__ == '__main__':
     le.load_data(load)
     le.update()
 
+    print(le.predict())
+
+    load = np.array([20,100,100,100,100,100,100])
+    le.load_data(load)
+    le.update()
+
+    print(le.predict())
+
     # v,l,u = le.predict()
     # print(v, l, u)
 

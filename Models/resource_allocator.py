@@ -13,6 +13,7 @@ MICROSERICE_ALREADY_REGISTERED = 101
 class ResourceAllocator(object):
     def __init__(self):
         self.id_mapping = {}
+        self.index_mapping = {}
 
         self.n_microservices = 0
         self.resource_learner_pool = []
@@ -31,6 +32,7 @@ class ResourceAllocator(object):
     def register_microservice(self, identifier, max_price=-1):
         if identifier not in self.id_mapping:
             self.id_mapping[identifier] = self.n_microservices
+            self.index_mapping[self.n_microservices] = identifier
             self.n_microservices += 1
             self.resource_learner_pool.append(ResourceLearner())
             self.preemption_estimator_pool.append(PreemptionEstimator(max_price=-1))
@@ -104,7 +106,12 @@ class ResourceAllocator(object):
         optimized_demands = self.optimize()
         print(optimized_demands)
 
-        return optimized_demands / preemptions
+        alloc = {}
+        for i in range(self.n_microservices):
+            alloc[self.index_mapping[i]] = optimized_demands[i] / preemptions[i]
+
+        # return optimized_demands / preemptions
+        return alloc
 
 
 if __name__ == '__main__':
