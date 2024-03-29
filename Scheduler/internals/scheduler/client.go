@@ -126,10 +126,6 @@ func (kc *KubernetesClient) UpdateResourceRequestsAndLimits(resourceScheduler *R
 			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", service.ResourceLimit)),
 		}
 
-		deployment.Spec.Template.Spec.Containers[0].Resources.Requests = corev1.ResourceList{
-			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", service.ResourceRequested)),
-		}
-
 		_, err = kc.clientset.AppsV1().Deployments(defaultNameSpace).Update(context.Background(), deployment, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to update deployment for service %s: %v", service.Name, err)

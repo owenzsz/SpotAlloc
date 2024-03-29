@@ -9,6 +9,10 @@ import (
 	"github.com/owenzsz/SpotAllocScheduler/internals/logger"
 )
 
+var (
+	minResourceLimit int64 = 100 // cannot set it to 0 because k8s cluster will consider 0 as no limit, so we have to set a very small number
+)
+
 type Service struct {
 	ID                string
 	Name              string
@@ -175,6 +179,7 @@ func (rs *ResourceScheduler) LogServiceMetricsToModelProxy() error {
 			"load":        service.QPS,
 			"resource":    service.ResourceUtilized,
 		})
+		fmt.Printf("Service: %s, ResourceUtilized: %d\n", id, service.ResourceUtilized)
 		if err != nil {
 			return fmt.Errorf("failed to log service metrics to model proxy: %v", err)
 		}
@@ -205,6 +210,7 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 	if err != nil || demand == nil {
 		return fmt.Errorf("error predicting demand: %v", err)
 	}
+	fmt.Printf("Demand for this round is: %v\n", demand)
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
 	donatedSlices := make(map[string]float64)
@@ -215,6 +221,7 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 		alloc[id] = math.Min(demand[id], rs.Alpha*fairShare)
 		rs.Services[id].Credits += (1 - rs.Alpha) * fairShare
 	}
+	fmt.Printf("allocation: %v\n", alloc)
 
 	donors := make([]string, 0)
 	for serviceID, slices := range donatedSlices {
@@ -260,8 +267,8 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 	}
 
 	for serviceID, resourceAllocation := range alloc {
-		rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
-		rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
+		rs.Services[serviceID].ResourceLimit = max(minResourceLimit, int64(resourceAllocation))
+		rs.serviceToResourceMap[serviceID] = max(minResourceLimit, int64(resourceAllocation))
 	}
 
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
@@ -333,8 +340,8 @@ func (rs *ResourceScheduler) MaxMinSchedule() error {
 			break
 		}
 		for serviceID, resourceAllocation := range allocation {
-			rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
-			rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
+			rs.Services[serviceID].ResourceLimit = max(minResourceLimit, int64(resourceAllocation))
+			rs.serviceToResourceMap[serviceID] = max(minResourceLimit, int64(resourceAllocation))
 		}
 	}
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
