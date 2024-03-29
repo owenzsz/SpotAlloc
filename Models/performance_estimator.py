@@ -50,30 +50,30 @@ class PerformanceEstimator(object):
         return self.model.predict(performance_param)
 
 
+if __name__ == '__main__':
+    pe = PerformanceEstimator()
+    pe.initialize_model()
 
-# pe = PerformanceEstimator()
-# pe.initialize_model()
+    x_append = np.array([[10,40],[10,50],[20,60]]).reshape(-1,2)
+    y_append = np.array([100, 100, 200])
+    pe.load_data(x_append, y_append)
+    pe.update()
 
-# x_append = np.array([[10,40],[10,50],[20,60]]).reshape(-1,2)
-# y_append = np.array([100, 100, 200])
-# pe.load_data(x_append, y_append)
-# pe.update()
+    ret = pe.predict([10,40])
+    print(ret)
+    ret = pe.predict([30,70])
+    print(ret)
 
-# ret = pe.predict([10,40])
-# print(ret)
-# ret = pe.predict([30,70])
-# print(ret)
+    print(pe.x_train)
 
-# print(pe.x_train)
+    x_append = np.array([[30,70]]).reshape(-1,2)
+    y_append = np.array([300])
+    pe.load_data(x_append, y_append)
+    pe.update()
 
-# x_append = np.array([[30,70]]).reshape(-1,2)
-# y_append = np.array([300])
-# pe.load_data(x_append, y_append)
-# pe.update()
+    ret = pe.predict([10,40])
+    print(ret)
+    ret = pe.predict([30,70])
+    print(ret)
 
-# ret = pe.predict([10,40])
-# print(ret)
-# ret = pe.predict([30,70])
-# print(ret)
-
-# print(pe.x_train)
+    print(pe.x_train)
