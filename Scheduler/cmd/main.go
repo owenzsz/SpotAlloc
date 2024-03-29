@@ -18,7 +18,7 @@ func main() {
 	flag.Parse()
 
 	//set up logger
-	logger.InitLogger("logs", "scheduler.log")
+	logger.InitLogger("logs", "scheduler.log", *algorithmName)
 
 	//check if the kubeconfig file exists
 	if _, err := os.Stat("kubeconfigr"); err == nil {

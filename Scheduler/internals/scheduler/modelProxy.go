@@ -17,7 +17,7 @@ type ModelProxy struct {
 }
 
 type DemandResponse struct {
-	Demands []float64 `json:"demands"`
+	Demands map[string]float64 `json:"demands"`
 }
 
 func NewModelProxy(baseURL string) *ModelProxy {
@@ -78,7 +78,7 @@ func (mp *ModelProxy) UpdateService(serviceID string, timestamp int64, inputData
 	return nil
 }
 
-func (mp *ModelProxy) PredictDemand() ([]float64, error) {
+func (mp *ModelProxy) PredictDemand() (map[string]float64, error) {
 	url := fmt.Sprintf("%s/allocate", mp.endPointURL)
 	resp, err := http.Get(url)
 	if err != nil {

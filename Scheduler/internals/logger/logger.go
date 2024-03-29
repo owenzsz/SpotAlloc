@@ -15,10 +15,10 @@ var (
 	once         sync.Once
 )
 
-func InitLogger(logDir, logFileName string) error {
+func InitLogger(logDir, logFileName, algorithm string) error {
 	var err error
 	once.Do(func() {
-		globalLogger, err = NewLogger(logDir, logFileName)
+		globalLogger, err = NewLogger(logDir, logFileName, algorithm)
 	})
 	return err
 }
@@ -48,11 +48,12 @@ func CloseLogger() {
 }
 
 type Logger struct {
-	logger *log.Logger
-	file   *os.File
+	logger    *log.Logger
+	file      *os.File
+	algorithm string
 }
 
-func NewLogger(logDir, logFileName string) (*Logger, error) {
+func NewLogger(logDir, logFileName, algorithm string) (*Logger, error) {
 	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %v", err)
 	}
@@ -66,8 +67,9 @@ func NewLogger(logDir, logFileName string) (*Logger, error) {
 	logger := log.New(file, "", log.LstdFlags)
 
 	return &Logger{
-		logger: logger,
-		file:   file,
+		logger:    logger,
+		file:      file,
+		algorithm: algorithm,
 	}, nil
 }
 
@@ -93,6 +95,7 @@ func (l *Logger) log(level, message string, data map[string]interface{}) {
 	logData := map[string]interface{}{
 		"timestamp": time.Now().Format(time.RFC3339),
 		"level":     level,
+		"algorithm": l.algorithm,
 		"message":   message,
 		"data":      data,
 	}
