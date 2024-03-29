@@ -5,17 +5,20 @@ import (
 	"math"
 	"sort"
 	"sync"
+
+	"github.com/owenzsz/SpotAllocScheduler/internals/logger"
 )
 
 type Service struct {
 	ID                string
 	Name              string
 	Credits           float64
-	ResourceUtilized  float64
-	ResourceRequested float64
-	ResourceLimit     float64
+	ResourceUtilized  int64
+	ResourceRequested int64
+	ResourceLimit     int64
 	Latency           float64
 	QPS               float64
+	SLO               int64
 }
 
 type ResourceScheduler struct {
@@ -24,6 +27,7 @@ type ResourceScheduler struct {
 	Alpha                   float64
 	TotalAllocableResources int64
 	modelProxy              *ModelProxy
+	serviceToResourceMap    map[string]int64
 }
 
 type DemandPair struct {
@@ -35,12 +39,13 @@ func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceSche
 	return &ResourceScheduler{
 		Services:                make(map[string]*Service),
 		Alpha:                   alpha,
-		TotalAllocableResources: int64(allocableResources),
+		TotalAllocableResources: allocableResources,
 		modelProxy:              NewModelProxy("localhost"),
+		serviceToResourceMap:    make(map[string]int64), //serviceID : totalAllocation
 	}
 }
 
-func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64) {
+func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64, SLO int64) {
 	rs.Lock()
 	defer rs.Unlock()
 
@@ -48,6 +53,7 @@ func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64)
 		ID:      id,
 		Name:    name,
 		Credits: initialCredits,
+		SLO:     SLO,
 	}
 	rs.Services[id] = service
 	err := rs.modelProxy.RegisterService(id)
@@ -56,7 +62,7 @@ func (rs *ResourceScheduler) AddService(id, name string, initialCredits float64)
 	}
 }
 
-func (rs *ResourceScheduler) UpdateServiceUsage(id string, resourceUtilized float64) {
+func (rs *ResourceScheduler) UpdateServiceUsage(id string, resourceUtilized int64) {
 	rs.Lock()
 	defer rs.Unlock()
 
@@ -82,7 +88,7 @@ func (rs *ResourceScheduler) UpdateServiceCredits(id string, credits float64) {
 	service.Credits = credits
 }
 
-func (rs *ResourceScheduler) UpdateServiceLimit(id string, limit float64) {
+func (rs *ResourceScheduler) UpdateServiceLimit(id string, limit int64) {
 	rs.Lock()
 	defer rs.Unlock()
 
@@ -95,7 +101,7 @@ func (rs *ResourceScheduler) UpdateServiceLimit(id string, limit float64) {
 	service.ResourceLimit = limit
 }
 
-func (rs *ResourceScheduler) UpdateServiceRequest(id string, request float64) {
+func (rs *ResourceScheduler) UpdateServiceRequest(id string, request int64) {
 	rs.Lock()
 	defer rs.Unlock()
 
@@ -261,8 +267,13 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 	}
 
 	for serviceID, resourceAllocation := range alloc {
-		rs.Services[serviceID].ResourceLimit = resourceAllocation
+		rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
+		rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
 	}
+
+	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
+	serviceToResourceMapLogging["TotalAllocableResources"] = rs.TotalAllocableResources
+	logger.Info("Credit-based scheduling resource allocation summary", serviceToResourceMapLogging)
 	return nil
 }
 
@@ -270,10 +281,15 @@ func (rs *ResourceScheduler) FairSchedule() error {
 	rs.Lock()
 	defer rs.Unlock()
 
-	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
-	for _, service := range rs.Services {
+	fairShare := rs.TotalAllocableResources / int64(len(rs.Services))
+	fmt.Printf("Fair share: %d\n", fairShare)
+	for serviceID, service := range rs.Services {
 		service.ResourceLimit = fairShare
+		rs.serviceToResourceMap[serviceID] = fairShare
 	}
+	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
+	serviceToResourceMapLogging["TotalAllocableResources"] = rs.TotalAllocableResources
+	logger.Info("Fair scheduling resource allocation summary", serviceToResourceMapLogging)
 	return nil
 }
 
@@ -324,9 +340,13 @@ func (rs *ResourceScheduler) MaxMinSchedule() error {
 			break
 		}
 		for serviceID, resourceAllocation := range allocation {
-			rs.Services[serviceID].ResourceLimit = resourceAllocation
+			rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
+			rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
 		}
 	}
+	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
+	serviceToResourceMapLogging["TotalAllocableResources"] = rs.TotalAllocableResources
+	logger.Info("Max-min scheduling resource allocation summary", serviceToResourceMapLogging)
 
 	return nil
 

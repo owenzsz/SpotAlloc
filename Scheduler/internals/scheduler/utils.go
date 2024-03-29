@@ -1,6 +1,16 @@
 package scheduler
 
-import "math"
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"os"
+)
+
+type ServiceSLOPair struct {
+	ServiceName string
+	SLO         int64
+}
 
 func sumDonatedSlices(donatedSlices map[string]float64) float64 {
 	sum := 0.0
@@ -17,6 +27,33 @@ func removeFromSlice(slice []string, item string) []string {
 		}
 	}
 	return slice
+}
+
+func ConvertMapToStringInterface[T any](inputMap map[string]T) map[string]interface{} {
+	result := make(map[string]interface{})
+	for key, value := range inputMap {
+		result[key] = value
+	}
+	return result
+}
+
+func ReadSLOFromJSON() (map[string]int64, error) {
+	SLOMap := make(map[string]int64)
+	data, err := os.ReadFile("SLO.json")
+	if err != nil {
+		fmt.Println("Error reading SLO file:", err)
+		return nil, err
+	}
+	var services []ServiceSLOPair
+	err = json.Unmarshal(data, &services)
+	if err != nil {
+		fmt.Println("Error unmarshalling SLO file:", err)
+		return nil, err
+	}
+	for _, pair := range services {
+		SLOMap[pair.ServiceName] = pair.SLO
+	}
+	return SLOMap, nil
 }
 
 // TODO: implement this with heap for better performance

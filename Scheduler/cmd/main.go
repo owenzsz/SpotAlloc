@@ -15,6 +15,7 @@ import (
 func main() {
 	// Parse the command line arguments
 	algorithmName := flag.String("algo", "credit", "Name of the scheduling algorithm")
+	flag.Parse()
 
 	//set up logger
 	logger.InitLogger("logs", "scheduler.log")
@@ -62,7 +63,13 @@ func main() {
 
 	for range ticker.C {
 		fmt.Println("Fetching services from Kubernetes cluster...")
-		err := kubernetesClient.AddServicesIfNeeded(resourceScheduler)
+		//read SLO from JSON file
+		SLOMap, err := scheduler.ReadSLOFromJSON()
+		if err != nil {
+			fmt.Printf("Failed to read SLO from JSON file: %v\n", err)
+			continue
+		}
+		err = kubernetesClient.AddServicesIfNeeded(resourceScheduler, SLOMap)
 		if err != nil {
 			fmt.Printf("Failed to update services: %v \n", err)
 			continue
