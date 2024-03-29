@@ -201,16 +201,9 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 	rs.Lock()
 	defer rs.Unlock()
 
-	demand := make(map[string]float64)
-	demandList, err := rs.modelProxy.PredictDemand()
-	if err != nil || demandList == nil {
+	demand, err := rs.modelProxy.PredictDemand()
+	if err != nil || demand == nil {
 		return fmt.Errorf("error predicting demand: %v", err)
-	}
-
-	index := 0
-	for id := range rs.Services {
-		demand[id] = demandList[index]
-		index++
 	}
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
@@ -295,15 +288,15 @@ func (rs *ResourceScheduler) FairSchedule() error {
 
 func (rs *ResourceScheduler) MaxMinSchedule() error {
 	demands := make([]*DemandPair, 0)
-	demandList, err := rs.modelProxy.PredictDemand()
-	if err != nil || demandList == nil {
+	demandMap, err := rs.modelProxy.PredictDemand()
+	if err != nil || demandMap == nil {
 		return fmt.Errorf("error predicting demand: %v", err)
 	}
 	index := 0
-	for id := range rs.Services {
+	for id, d := range demandMap {
 		newPair := DemandPair{
 			ServiceID: id,
-			Demand:    demandList[index],
+			Demand:    d,
 		}
 		demands = append(demands, &newPair)
 		index++
