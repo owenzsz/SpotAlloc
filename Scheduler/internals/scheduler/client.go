@@ -123,11 +123,11 @@ func (kc *KubernetesClient) UpdateResourceRequestsAndLimits(resourceScheduler *R
 			return fmt.Errorf("failed to get deployment for service %s: %v", service.Name, err)
 		}
 		deployment.Spec.Template.Spec.Containers[0].Resources.Limits = corev1.ResourceList{
-			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", int64(service.ResourceLimit))),
+			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", service.ResourceLimit)),
 		}
 
 		deployment.Spec.Template.Spec.Containers[0].Resources.Requests = corev1.ResourceList{
-			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", int64(service.ResourceRequested))),
+			corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%dm", service.ResourceRequested)),
 		}
 
 		_, err = kc.clientset.AppsV1().Deployments(defaultNameSpace).Update(context.Background(), deployment, metav1.UpdateOptions{})
@@ -187,10 +187,12 @@ func (kc *KubernetesClient) GetServicePerformanceMetrics(serviceName string, lat
 	// Create a new Prometheus query API client
 	queryAPI := prometheusv1.NewAPI(client)
 	latency, err := kc.GetServiceLatency(queryAPI, serviceName, latencyQuantile, pastDuration)
+	fmt.Printf("Service: %s, Latency: %f\n", serviceName, latency)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to get latency for service %s: %v", serviceName, err)
 	}
 	QPS, err := kc.GetServiceQPS(queryAPI, serviceName, pastDuration)
+	fmt.Printf("Service: %s, QPS: %f\n", serviceName, QPS)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to get QPS for service %s: %v", serviceName, err)
 	}

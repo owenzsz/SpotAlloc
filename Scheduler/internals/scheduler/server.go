@@ -268,7 +268,7 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 
 	for serviceID, resourceAllocation := range alloc {
 		rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
-		rs.serviceToResourceMap[serviceID] += int64(resourceAllocation)
+		rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
 	}
 
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
@@ -282,9 +282,10 @@ func (rs *ResourceScheduler) FairSchedule() error {
 	defer rs.Unlock()
 
 	fairShare := rs.TotalAllocableResources / int64(len(rs.Services))
+	fmt.Printf("Fair share: %d\n", fairShare)
 	for serviceID, service := range rs.Services {
 		service.ResourceLimit = fairShare
-		rs.serviceToResourceMap[serviceID] += fairShare
+		rs.serviceToResourceMap[serviceID] = fairShare
 	}
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
 	serviceToResourceMapLogging["TotalAllocableResources"] = rs.TotalAllocableResources
@@ -340,7 +341,7 @@ func (rs *ResourceScheduler) MaxMinSchedule() error {
 		}
 		for serviceID, resourceAllocation := range allocation {
 			rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
-			rs.serviceToResourceMap[serviceID] += int64(resourceAllocation)
+			rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
 		}
 	}
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)

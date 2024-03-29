@@ -15,6 +15,7 @@ import (
 func main() {
 	// Parse the command line arguments
 	algorithmName := flag.String("algo", "credit", "Name of the scheduling algorithm")
+	flag.Parse()
 
 	//set up logger
 	logger.InitLogger("logs", "scheduler.log")
