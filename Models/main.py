@@ -45,7 +45,7 @@ def log():
 
 @app.route('/allocate', methods=['GET'])
 def allocate ():
-    result = ra.allocate().tolist()
+    result = ra.allocate()
 
     return jsonify({'demands': result})
 

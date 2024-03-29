@@ -35,10 +35,13 @@ class PreemptionEstimator(object):
         self.prices = np.array([])
         self.exceeds = np.array([])
     
-    def add_data(self):
-        self.time_deltas = np.append(self.time_deltas, [1,2,3,4])
-        self.prices = np.append(self.prices, [1,2,3,4])
-        self.exceeds = np.append(self.exceeds, [0,0,1,0])
+    # def add_data(self):
+    #     # self.time_deltas = np.append(self.time_deltas, [1,2,3,4])
+    #     # self.prices = np.append(self.prices, [1,2,3,4])
+    #     # self.exceeds = np.append(self.exceeds, [0,0,1,0])
+    #     self.time_deltas = np.append(self.time_deltas, [1,2,3,4])
+    #     self.prices = np.append(self.prices, [1,2,3,4])
+    #     self.exceeds = np.append(self.exceeds, [0,0,1,0])
     
     def get_spot_instance_price(self, region, instance_type, curr_time):
         client = boto3.client('ec2', region_name=region)
@@ -92,6 +95,9 @@ class PreemptionEstimator(object):
         return 0.005
 
     def compute_preempt_prob_with_max(self):
+        if len(self.prices) == 0:
+            return self.compute_preempt_prob_without_max()
+
         current_time = datetime.datetime.now()
 
         # Standardize features
@@ -100,8 +106,8 @@ class PreemptionEstimator(object):
         y_train = self.exceeds
 
         # print(self.time_deltas.reshape(-1,1))
-        print(X_train_scaled)
-        print(y_train)
+        # print(X_train_scaled)
+        # print(y_train)
         # Train logistic regression model
         model = LogisticRegression()
         model.fit(X_train_scaled, y_train)
@@ -117,27 +123,27 @@ class PreemptionEstimator(object):
         self.predict_intention = True
         self.mutex_lock.acquire()
 
-        prob = 0
-        print(self.max_price)
+        # prob = 0
+        # print(self.max_price)
         if self.max_price == -1:
-            prob = self.compute_preempt_prob_without_max()
+            self.prob = self.compute_preempt_prob_without_max()
         else:
-            prob = self.compute_preempt_prob_with_max()
+            self.prob = self.compute_preempt_prob_with_max()
         
         self.predict_intention = False
         self.mutex_lock.release()
 
         # print("leaving compute_preemption_prob")
-        return prob
+        return self.prob
 
 if __name__ == '__main__':
     P = PreemptionEstimator(10)
-    # # P.poll_price()
+    # P.poll_price()
 
     # P.add_data()
-    # P.compute_preemption_prob()
+    P.compute_preemption_prob()
 
-    # print(P.prob)
+    print(P.prob)
 
     # curr_time = datetime.datetime.now()
     # price = P.get_spot_instance_price('us-west-2', 'm5.mdeium', curr_time)
