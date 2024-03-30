@@ -76,11 +76,13 @@ func (kc *KubernetesClient) UpdateServicePerformanceMetrics(resourceScheduler *R
 		latency, QPS, err := kc.GetServicePerformanceMetrics(service.Name, 0.95, 2)
 		if err != nil {
 			return fmt.Errorf("failed to get performance metrics for service %s when updating the metrics: %v", service.Name, err)
-		}
-		if math.IsNaN(latency) {
+		} else if latency == 0 {
+			latency = 10.0 //this is the situation when the service timesout all the time
+		} else if QPS == 0 {
+			QPS = 10.0 //this is the situation when the service exceeds the limit
+		} else if math.IsNaN(latency) {
 			latency = 0
-		}
-		if math.IsNaN(QPS) {
+		} else if math.IsNaN(QPS) {
 			QPS = 0
 		}
 		// fmt.Printf("Service: %s, Latency: %f, QPS: %f\n", service.Name, latency, QPS)
