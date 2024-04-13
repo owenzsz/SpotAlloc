@@ -4,7 +4,7 @@ from sklearn.kernel_ridge import KernelRidge
 import statsmodels.api as sm
 import scipy.stats as stats
 
-from MQ import MessageQueue
+from MQ import MessageQueue 
 
 FEATURE_NUM = 2 # FEATURE_NUM is the number of metric used for predictions
 
