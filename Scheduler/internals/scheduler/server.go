@@ -242,24 +242,24 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 		// Find the borrower with maximum credits
 		selectedBorrower := selectBorrowerWithMaxCredits(rs.Services, borrowers)
 
-		borrowerRequiredAmount := min(rs.Services[selectedBorrower].Credits, demand[selectedBorrower]-alloc[selectedBorrower]) //unit: milliCPU, 1000 milliCPU = 1 CPU
-		borrowerGainedAmount := borrowerRequiredAmount
+		// borrowerRequiredAmount := min(rs.Services[selectedBorrower].Credits, demand[selectedBorrower]-alloc[selectedBorrower]) //unit: milliCPU, 1000 milliCPU = 1 CPU
+		// borrowerGainedAmount := borrowerRequiredAmount
 		if len(donors) > 0 {
 			// Find the donor with minimum credits
 			selectedDonor := selectDonorWithMinCredits(rs.Services, donors)
-			borrowerGainedAmount = min(borrowerRequiredAmount, donatedSlices[selectedDonor])
-			rs.Services[selectedDonor].Credits += borrowerGainedAmount
-			donatedSlices[selectedDonor] -= borrowerGainedAmount
+			// borrowerGainedAmount = min(borrowerRequiredAmount, donatedSlices[selectedDonor])
+			rs.Services[selectedDonor].Credits += 1
+			donatedSlices[selectedDonor] -= 1
 			// Update the set of donors
 			if donatedSlices[selectedDonor] <= 0 {
 				donors = removeFromSlice(donors, selectedDonor)
 			}
 		} else {
-			sharedSlices -= borrowerGainedAmount
+			sharedSlices -= 1
 		}
 
-		alloc[selectedBorrower] += borrowerGainedAmount
-		rs.Services[selectedBorrower].Credits -= borrowerGainedAmount
+		alloc[selectedBorrower] += 1
+		rs.Services[selectedBorrower].Credits -= 1
 
 		// Update the set of borrowers
 		if alloc[selectedBorrower] >= demand[selectedBorrower] || rs.Services[selectedBorrower].Credits <= 0 {
@@ -303,6 +303,7 @@ func (rs *ResourceScheduler) MaxMinSchedule() error {
 	if err != nil || demandMap == nil {
 		return fmt.Errorf("error predicting demand: %v", err)
 	}
+	demandMap = rs.DenormalizeAndSanitizeDemandPercentages(demandMap)
 	index := 0
 	for id, d := range demandMap {
 		newPair := DemandPair{
