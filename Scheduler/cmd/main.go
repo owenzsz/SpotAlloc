@@ -55,12 +55,13 @@ func main() {
 		fmt.Printf("Failed to get total allocable CPU resources: %v", err)
 	}
 	alpha := 0.1
-	resourceScheduler := scheduler.NewResourceScheduler(alpha, allocableResources)
+	inflationFactor := 0.1
+	resourceScheduler := scheduler.NewResourceScheduler(alpha, allocableResources, inflationFactor)
 
 	// Run the scheduling loop every 2 minutes
-	ticker := time.NewTicker(2 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
-
+	round := 0
 	for range ticker.C {
 		fmt.Println("Fetching services from Kubernetes cluster...")
 		//read SLO from JSON file
@@ -88,13 +89,14 @@ func main() {
 			continue
 		}
 
-		err = resourceScheduler.LogServiceMetricsToModelProxy()
-		if err != nil {
-			fmt.Printf("Failed to log service metrics to model proxy: %v \n", err)
-		}
+		// err = resourceScheduler.LogServiceMetricsToModelProxy()
+		// if err != nil {
+		// 	fmt.Printf("Failed to log service metrics to model proxy: %v \n", err)
+		// }
 
 		fmt.Println("Running resource scheduler...")
-		err = resourceScheduler.Schedule(*algorithmName)
+		err = resourceScheduler.Schedule(*algorithmName, round)
+		round++
 		if err != nil {
 			fmt.Printf("Failed to run resource scheduler: %v \n", err)
 			continue

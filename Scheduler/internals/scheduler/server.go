@@ -31,6 +31,7 @@ type ResourceScheduler struct {
 	TotalAllocableResources int64
 	modelProxy              *ModelProxy
 	serviceToResourceMap    map[string]int64
+	inflationFactor         float64
 }
 
 type DemandPair struct {
@@ -38,12 +39,13 @@ type DemandPair struct {
 	Demand    float64
 }
 
-func NewResourceScheduler(alpha float64, allocableResources int64) *ResourceScheduler {
+func NewResourceScheduler(alpha float64, allocableResources int64, intflationFactor float64) *ResourceScheduler {
 	return &ResourceScheduler{
 		Services:                make(map[string]*Service),
 		Alpha:                   alpha,
 		TotalAllocableResources: allocableResources,
 		modelProxy:              NewModelProxy("localhost"),
+		inflationFactor:         intflationFactor,
 		serviceToResourceMap:    make(map[string]int64), //serviceID : totalAllocation
 	}
 }
@@ -187,30 +189,32 @@ func (rs *ResourceScheduler) LogServiceMetricsToModelProxy() error {
 	return nil
 }
 
-func (rs *ResourceScheduler) Schedule(algorithmName string) error {
+func (rs *ResourceScheduler) Schedule(algorithmName string, round int) error {
 	var err error
 	if algorithmName == "credit" {
-		err = rs.CreditBasedSchedule()
+		err = rs.CreditBasedSchedule(round)
 	} else if algorithmName == "fair" {
 		err = rs.FairSchedule()
 	} else if algorithmName == "maxmin" {
-		err = rs.MaxMinSchedule()
+		err = rs.MaxMinSchedule(round)
 	} else {
 		err = fmt.Errorf("unknown scheduling algorithm: %s", algorithmName)
 	}
 	return err
 }
 
-func (rs *ResourceScheduler) CreditBasedSchedule() error {
+func (rs *ResourceScheduler) CreditBasedSchedule(round int) error {
 	rs.Lock()
 	defer rs.Unlock()
 
-	demand, err := rs.modelProxy.PredictDemand()
-	if err != nil || demand == nil {
-		return fmt.Errorf("error predicting demand: %v", err)
-	}
-	fmt.Printf("Demand percentage for this round is: %v\n", demand)
-	demand = rs.DenormalizeAndSanitizeDemandPercentages(demand)
+	// demand, err := rs.modelProxy.PredictDemand()
+	// if err != nil || demand == nil {
+	// 	return fmt.Errorf("error predicting demand: %v", err)
+	// }
+	// fmt.Printf("Demand percentage for this round is: %v\n", demand)
+	// demand = rs.DenormalizeAndSanitizeDemandPercentages(demand)
+	rs.creditInflation()
+	demand := rs.CreateMaliciousWorkload(round)
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
 	donatedSlices := make(map[string]float64)
@@ -297,13 +301,15 @@ func (rs *ResourceScheduler) FairSchedule() error {
 	return nil
 }
 
-func (rs *ResourceScheduler) MaxMinSchedule() error {
+func (rs *ResourceScheduler) MaxMinSchedule(round int) error {
+	rs.creditInflation()
 	demands := make([]*DemandPair, 0)
-	demandMap, err := rs.modelProxy.PredictDemand()
-	if err != nil || demandMap == nil {
-		return fmt.Errorf("error predicting demand: %v", err)
-	}
-	demandMap = rs.DenormalizeAndSanitizeDemandPercentages(demandMap)
+	// demandMap, err := rs.modelProxy.PredictDemand()
+	demandMap := rs.CreateMaliciousWorkload(round)
+	// if err != nil || demandMap == nil {
+	// 	return fmt.Errorf("error predicting demand: %v", err)
+	// }
+	// demandMap = rs.DenormalizeAndSanitizeDemandPercentages(demandMap)
 	index := 0
 	for id, d := range demandMap {
 		newPair := DemandPair{
@@ -382,4 +388,37 @@ func (rs *ResourceScheduler) DenormalizeAndSanitizeDemandPercentages(demandPerce
 		}
 	}
 	return actualDemands
+}
+
+func (rs *ResourceScheduler) CreateMaliciousWorkload(round int) map[string]float64 {
+	demandPercentage := make(map[string]float64)
+	actualDemands := make(map[string]float64)
+	if round < 10 {
+		for serviceID := range rs.Services {
+			if serviceID == "my-microservice-1" {
+				demandPercentage[serviceID] = 0.04
+			} else {
+				demandPercentage[serviceID] = 0.24
+			}
+		}
+	} else {
+		for serviceID := range rs.Services {
+			if serviceID == "my-microservice-1" {
+				demandPercentage[serviceID] = 0.96
+			} else {
+				demandPercentage[serviceID] = 0.01
+			}
+		}
+	}
+	for service, percent := range demandPercentage {
+		actualDemands[service] = percent * float64(rs.TotalAllocableResources)
+	}
+	return actualDemands
+
+}
+
+func (rs *ResourceScheduler) creditInflation() {
+	for _, service := range rs.Services {
+		service.Credits *= (1 - rs.inflationFactor)
+	}
 }
