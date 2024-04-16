@@ -1,10 +1,16 @@
 from flask import Flask, jsonify, request
 from resource_allocator import ResourceAllocator
 import resource_allocator
+import sys
 
 app = Flask(__name__)
 
-ra = ResourceAllocator()
+if len(sys.argv) > 1:
+    max_price = int(sys.argv[1])
+else:
+    max_price = 10
+
+ra = ResourceAllocator(max_price)
 
 @app.route('/register', methods=['POST'])
 def register():

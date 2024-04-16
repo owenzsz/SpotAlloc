@@ -11,7 +11,7 @@ MICROSERICE_ALREADY_REGISTERED = 101
 
 # application-level resource allocator
 class ResourceAllocator(object):
-    def __init__(self):
+    def __init__(self, resource):
         self.id_mapping = {}
         self.index_mapping = {}
 
@@ -23,6 +23,10 @@ class ResourceAllocator(object):
         # self.performance_models = None
 
         self.optimal = None
+
+        self.resource = resource
+
+        self.preemptions = None
 
     def log_data(self, identifier, timestamp, data):
         id = self.id_mapping[identifier]
@@ -51,7 +55,7 @@ class ResourceAllocator(object):
         
     def start_poll(self, identifier):
         thread = threading.Thread(target=self.start_poll_one, args=(identifier))
-        print("Started pricing polling service for microservice", identifier)
+        # print("Started pricing polling service for microservice", identifier)
         thread.start()
 
     # def get_estimation(self):
@@ -66,52 +70,58 @@ class ResourceAllocator(object):
 
         # print(self.resource_learner_pool[0].predict_performance(a))
         # print([self.resource_learner_pool[i].predict_performance(a) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
-
+        # print([self.resource_learner_pool[i].predict_performance(a[i]) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
         return np.sum([self.resource_learner_pool[i].predict_performance(a[i]) for i in range(self.n_microservices) if self.resource_learner_pool[i] is not None])
 
     def constraint(self, a):
         # return 1.0 - np.sum(a)
-        return np.sum(a) - 1
+        resource_utlization = 0
+        for i in range(a.size):
+            resource_utlization += (a[i] / (1-self.preemptions[i]))
+        return self.resource - resource_utlization
+        # return self.resource - np.sum(a)
+        # return np.sum(a) - 1
 
     def optimize(self):
-        # Example usage
-        # n = 5  # Dimension of vectors a and l
-        l = np.random.rand(self.n_microservices)  # Randomly initialize vector l
-
         # Initial guess for a
-        initial_a = np.random.rand(self.n_microservices)
-        initial_a /= np.sum(initial_a)  # Normalize initial guess to satisfy the constraint
+        # initial_a = np.random.rand(self.n_microservices)
+        # initial_a /= np.sum(initial_a)  # Normalize initial guess to satisfy the constraint
+
+        initial_a_tmp = np.random.rand(self.n_microservices)
+        initial_a = np.full_like(initial_a_tmp, (self.resource/self.n_microservices))
+        for i in range(initial_a.size):
+            initial_a[i] = initial_a[i] * (1-self.preemptions[i])
 
         # Bounds for each component of a (0 <= a_i <= 1)
-        bounds = [(0, 1) for _ in range(len(initial_a))]
+        bounds = [(0, self.resource) for _ in range(len(initial_a))]
 
         # Constraint dictionary
         constraints = {'type': 'eq', 'fun': self.constraint}
 
-        print("initial a:", initial_a)
+        # print("initial a after preemption:", initial_a)
         # Minimize the negative of the objective function to maximize
-        result = minimize(self.objective_function, initial_a, bounds=bounds, constraints=constraints)
-
+        result = minimize(self.objective_function, initial_a, bounds=bounds, constraints=constraints, options={'maxiter': 1000})
+        # print(result)
         optimal_a = result.x
-        optimal_a /= np.sum(optimal_a)  # Normalize to ensure the sum is 1
-
-        print("Optimal a:", optimal_a)
-        print("Objective value:", -result.fun)  # Objective value is negated due to maximizing
+        # optimal_a /= np.sum(optimal_a)  # Normalize to ensure the sum is 1
 
         return optimal_a
 
     def allocate(self):
         # print("Enter allocate")
-        preemptions = [self.preemption_estimator_pool[i].compute_preemption_prob() for i in range(self.n_microservices)]
-        print(preemptions)
+        self.preemptions = [self.preemption_estimator_pool[i].compute_preemption_prob() for i in range(self.n_microservices)]
+        # print("preemption: ", self.preemptions)
         optimized_demands = self.optimize()
-        print(optimized_demands)
+        print("Optimized allocation: ", optimized_demands)
 
         alloc = {}
-        aggregate = sum([optimized_demands[i] / (1-preemptions[i]) for i in range(self.n_microservices)])
-        for i in range(self.n_microservices):
-            alloc[self.index_mapping[i]] = (optimized_demands[i] / (1-preemptions[i])) / aggregate
+        # aggregate = sum([optimized_demands[i] / (1-self.preemptions[i]) for i in range(self.n_microservices)])
 
+        # for i in range(self.n_microservices):
+        #     alloc[self.index_mapping[i]] = (optimized_demands[i] / (1-self.preemptions[i])) / aggregate
+
+        for i in range(self.n_microservices):
+            alloc[self.index_mapping[i]] = optimized_demands[i] / (1-self.preemptions[i])
         # return optimized_demands / preemptions
         return alloc
 
@@ -119,10 +129,10 @@ class ResourceAllocator(object):
 if __name__ == '__main__':
     # ra = ResourceAllocator()
     # ra.register_microservice("ms1")
-    # ra.log_data("ms1", 1, {"load": [10], "resource": [40], "performance":[100]})
-    # ra.log_data("ms1", 1, {"load": [10], "resource": [40], "performance":[100]})
-    # ra.log_data("ms1", 2, {"load": [20], "resource": [60], "performance":[200]})
-    # ra.log_data("ms1", 3, {"load": [30], "resource": [70], "performance":[300]})
+    # ra.log_data("ms1", 1, {"load": [10], "resource": [40], "latency":[100]})
+    # ra.log_data("ms1", 1, {"load": [10], "resource": [40], "latency":[100]})
+    # ra.log_data("ms1", 2, {"load": [20], "resource": [60], "latency":[200]})
+    # ra.log_data("ms1", 3, {"load": [30], "resource": [70], "latency":[300]})
 
     # # print("Enter 1")
 
@@ -133,15 +143,17 @@ if __name__ == '__main__':
 
     # # ra.start_poll_all()
 
-    ra = ResourceAllocator()
+    ra = ResourceAllocator(100)
     ra.register_microservice("a")
     ra.start_poll("a")
 
     # print("enter 1")
 
-    # ra.log_data("a", 1, {"load": [10], "resource": [40], "performance":[100]})
-    # ra.log_data("a", 2, {"load": [20], "resource": [60], "performance":[200]})
-    ra.log_data("a", 2, {"load": [0.433333], "resource": [100], "performance":[10]})
+
+    # ra.log_data("a", 1, {"load": [10], "resource": [40], "latency":[100]})
+    # ra.log_data("a", 2, {"load": [20], "resource": [60], "latency":[200]})
+    ra.log_data("a", 2, {"load": [42.8571], "resource": [42.18], "latency":[10]})
+
 
     # print("enter 2")
 
@@ -154,9 +166,11 @@ if __name__ == '__main__':
     ra.register_microservice("b")
     ra.start_poll("b")
 
-    # ra.log_data("b", 1, {"load": [10], "resource": [40], "performance":[100]})
-    # ra.log_data("b", 2, {"load": [20], "resource": [60], "performance":[200]})
-    ra.log_data("b", 2, {"load": [0.28], "resource": [101], "performance":[10]})
+
+    # ra.log_data("b", 1, {"load": [10], "resource": [40], "latency":[100]})
+    # ra.log_data("b", 2, {"load": [20], "resource": [60], "latency":[200]})
+    ra.log_data("b", 2, {"load": [35.71429], "resource": [51.289], "latency":[7.495427]})
+
 
     ret = ra.allocate()
     print(ret)
@@ -165,11 +179,12 @@ if __name__ == '__main__':
     ra.register_microservice("c")
     ra.start_poll("c")
 
-    # ra.log_data("c", 1, {"load": [10], "resource": [40], "performance":[100]})
-    # ra.log_data("c", 2, {"load": [20], "resource": [60], "performance":[200]})
-    # ra.log_data("c", 2, {"load": [20], "resource": [60], "performance":[200]})
-    # ra.log_data("c", 3, {"load": [30], "resource": [70], "performance":[300]})
-    ra.log_data("c", 1, {"load": [0.42], "resource": [100], "performance":[10]})
+    # ra.log_data("c", 1, {"load": [10], "resource": [40], "latency":[100]})
+    # ra.log_data("c", 2, {"load": [20], "resource": [60], "latency":[200]})
+    # ra.log_data("c", 2, {"load": [20], "resource": [60], "latency":[200]})
+    # ra.log_data("c", 3, {"load": [30], "resource": [70], "latency":[300]})
+    ra.log_data("c", 1, {"load": [37.0830], "resource": [27.2186], "latency":[10]})
+
 
     ret = ra.allocate()
     print(ret)
@@ -177,13 +192,16 @@ if __name__ == '__main__':
     ra.register_microservice("d")
     ra.start_poll("d")
 
-    ra.log_data("d", 1, {"load": [0.3], "resource": [100], "performance":[10]})
+
+    ra.log_data("d", 1, {"load": [45.7143], "resource": [13.1289], "latency":[10]})
+
 
 
     ra.register_microservice("e")
     ra.start_poll("e")
 
-    ra.log_data("e", 1, {"load": [2.961036], "resource": [387], "performance":[3.791644]})
+    ra.log_data("e", 1, {"load": [42.8571], "resource": [10.681], "latency":[10]})
+
 
     ret = ra.allocate()
     print(ret)

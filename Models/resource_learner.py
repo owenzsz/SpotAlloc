@@ -57,7 +57,7 @@ class ResourceLearner(object):
             data = self.mq.poll()
             # print(np.concatenate([value for key, value in data.items() if (key != 'timestamp') and (key != 'performance') and (key != 'load')]))
             # x_perf = np.append(x_perf, np.concatenate([value for key, value in data.items() if (key != 'timestamp') and (key != 'performance')]).reshape(1,-1), axis=0)
-            x_extract = [value for key, value in data.items() if key not in ['timestamp', 'performance']]
+            x_extract = [value for key, value in data.items() if key not in ['timestamp', 'latency']]
             # x_extract = np.concatenate(x_extract).reshape(1,-1)
             x_extract = [np.atleast_2d(np.array(value)) for value in x_extract]
             x_extract = np.concatenate(x_extract, axis=1)
@@ -70,7 +70,7 @@ class ResourceLearner(object):
 
             # print(x_perf)
             
-            y_perf = np.append(y_perf, np.array([data['performance']]))
+            y_perf = np.append(y_perf, np.array([data['latency']]))
 
             load_data = np.append(load_data, np.array([data['load']]))
 
@@ -105,12 +105,12 @@ class ResourceLearner(object):
 
 # rl = ResourceLearner(4, r"/home/wangzhe/Desktop/CS525/SpotAlloc/Models/mq_test.csv")
 # rl.initialize()
-# rl.put_data(1, {"load": [10], "resource": [40], "performance":[100]})
-# rl.put_data(1, {"load": [10], "resource": [50], "performance":[100]})
-# rl.put_data(2, {"load": [20], "resource": [60], "performance":[200]})
-# rl.put_data(3, {"load": [30], "resource": [70], "performance":[300]})
-# rl.put_data(4, {"load": [40], "resource": [80], "performance":[400]})
-# rl.put_data(5, {"load": [50], "resource": [90], "performance":[500]})
+# rl.put_data(1, {"load": [10], "resource": [40], "latency":[100]})
+# rl.put_data(1, {"load": [10], "resource": [50], "latency":[100]})
+# rl.put_data(2, {"load": [20], "resource": [60], "latency":[200]})
+# rl.put_data(3, {"load": [30], "resource": [70], "latency":[300]})
+# rl.put_data(4, {"load": [40], "resource": [80], "latency":[400]})
+# rl.put_data(5, {"load": [50], "resource": [90], "latency":[500]})
 
 
 # # rl.update()
@@ -120,12 +120,12 @@ class ResourceLearner(object):
 # res = rl.predict_performance([60])
 # print(res)
 
-# rl.put_data(1, {"load": [10], "resource": [100], "performance":[600]})
-# rl.put_data(1, {"load": [10], "resource": [110], "performance":[700]})
-# rl.put_data(2, {"load": [20], "resource": [130], "performance":[900]})
-# rl.put_data(3, {"load": [30], "resource": [120], "performance":[800]})
-# rl.put_data(4, {"load": [40], "resource": [140], "performance":[1000]})
-# rl.put_data(5, {"load": [50], "resource": [150], "performance":[1100]})
+# rl.put_data(1, {"load": [10], "resource": [100], "latency":[600]})
+# rl.put_data(1, {"load": [10], "resource": [110], "latency":[700]})
+# rl.put_data(2, {"load": [20], "resource": [130], "latency":[900]})
+# rl.put_data(3, {"load": [30], "resource": [120], "latency":[800]})
+# rl.put_data(4, {"load": [40], "resource": [140], "latency":[1000]})
+# rl.put_data(5, {"load": [50], "resource": [150], "latency":[1100]})
 
 # # rl.update()
 # res = rl.predict_performance([150])
