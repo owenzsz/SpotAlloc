@@ -149,9 +149,11 @@ if __name__ == '__main__':
 
     # print("enter 1")
 
+
     # ra.log_data("a", 1, {"load": [10], "resource": [40], "latency":[100]})
     # ra.log_data("a", 2, {"load": [20], "resource": [60], "latency":[200]})
     ra.log_data("a", 2, {"load": [42.8571], "resource": [42.18], "latency":[10]})
+
 
     # print("enter 2")
 
@@ -164,9 +166,11 @@ if __name__ == '__main__':
     ra.register_microservice("b")
     ra.start_poll("b")
 
+
     # ra.log_data("b", 1, {"load": [10], "resource": [40], "latency":[100]})
     # ra.log_data("b", 2, {"load": [20], "resource": [60], "latency":[200]})
     ra.log_data("b", 2, {"load": [35.71429], "resource": [51.289], "latency":[7.495427]})
+
 
     ret = ra.allocate()
     print(ret)
@@ -181,19 +185,23 @@ if __name__ == '__main__':
     # ra.log_data("c", 3, {"load": [30], "resource": [70], "latency":[300]})
     ra.log_data("c", 1, {"load": [37.0830], "resource": [27.2186], "latency":[10]})
 
+
     ret = ra.allocate()
     print(ret)
 
     ra.register_microservice("d")
     ra.start_poll("d")
 
+
     ra.log_data("d", 1, {"load": [45.7143], "resource": [13.1289], "latency":[10]})
+
 
 
     ra.register_microservice("e")
     ra.start_poll("e")
 
     ra.log_data("e", 1, {"load": [42.8571], "resource": [10.681], "latency":[10]})
+
 
     ret = ra.allocate()
     print(ret)

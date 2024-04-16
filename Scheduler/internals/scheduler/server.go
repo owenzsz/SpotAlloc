@@ -2,11 +2,14 @@ package scheduler
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"sync"
 
 	"github.com/owenzsz/SpotAllocScheduler/internals/logger"
+)
+
+var (
+	minResourceLimit int64 = 100 // cannot set it to 0 because k8s cluster will consider 0 as no limit, so we have to set a very small number
 )
 
 type Service struct {
@@ -175,6 +178,7 @@ func (rs *ResourceScheduler) LogServiceMetricsToModelProxy() error {
 			"load":        service.QPS,
 			"resource":    service.ResourceUtilized,
 		})
+		fmt.Printf("Service: %s, ResourceUtilized: %d\n", id, service.ResourceUtilized)
 		if err != nil {
 			return fmt.Errorf("failed to log service metrics to model proxy: %v", err)
 		}
@@ -201,25 +205,20 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 	rs.Lock()
 	defer rs.Unlock()
 
-	demand := make(map[string]float64)
-	demandList, err := rs.modelProxy.PredictDemand()
-	if err != nil || demandList == nil {
+	demand, err := rs.modelProxy.PredictDemand()
+	if err != nil || demand == nil {
 		return fmt.Errorf("error predicting demand: %v", err)
 	}
-
-	index := 0
-	for id := range rs.Services {
-		demand[id] = demandList[index]
-		index++
-	}
+	fmt.Printf("Demand percentage for this round is: %v\n", demand)
+	demand = rs.DenormalizeAndSanitizeDemandPercentages(demand)
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
 	donatedSlices := make(map[string]float64)
 	alloc := make(map[string]float64)
 
 	for id := range rs.Services {
-		donatedSlices[id] = math.Max(0, rs.Alpha*fairShare-demand[id])
-		alloc[id] = math.Min(demand[id], rs.Alpha*fairShare)
+		donatedSlices[id] = max(0, rs.Alpha*fairShare-demand[id])
+		alloc[id] = min(demand[id], rs.Alpha*fairShare)
 		rs.Services[id].Credits += (1 - rs.Alpha) * fairShare
 	}
 
@@ -229,6 +228,7 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 			donors = append(donors, serviceID)
 		}
 	}
+	fmt.Printf("Donors for this round: %v\n", donors)
 
 	borrowers := make([]string, 0)
 	for serviceID, allocated := range alloc {
@@ -236,40 +236,44 @@ func (rs *ResourceScheduler) CreditBasedSchedule() error {
 			borrowers = append(borrowers, serviceID)
 		}
 	}
+	fmt.Printf("borrowers for this round: %v\n", borrowers)
 
 	for len(borrowers) > 0 && (sumDonatedSlices(donatedSlices) > 0 || sharedSlices > 0) {
 		// Find the borrower with maximum credits
 		selectedBorrower := selectBorrowerWithMaxCredits(rs.Services, borrowers)
 
-		borrowerRequiredAmount := math.Max(0, demand[selectedBorrower]-alloc[selectedBorrower]) //unit: milliCPU, 1000 milliCPU = 1 CPU
-		borrowerGainedAmount := borrowerRequiredAmount
+		// borrowerRequiredAmount := min(rs.Services[selectedBorrower].Credits, demand[selectedBorrower]-alloc[selectedBorrower]) //unit: milliCPU, 1000 milliCPU = 1 CPU
+		// borrowerGainedAmount := borrowerRequiredAmount
 		if len(donors) > 0 {
 			// Find the donor with minimum credits
 			selectedDonor := selectDonorWithMinCredits(rs.Services, donors)
-			borrowerGainedAmount = math.Min(borrowerRequiredAmount, donatedSlices[selectedDonor])
-			rs.Services[selectedDonor].Credits += borrowerGainedAmount
-			donatedSlices[selectedDonor] -= borrowerGainedAmount
+			// borrowerGainedAmount = min(borrowerRequiredAmount, donatedSlices[selectedDonor])
+			rs.Services[selectedDonor].Credits += 1
+			donatedSlices[selectedDonor] -= 1
 			// Update the set of donors
-			if donatedSlices[selectedDonor] == 0 {
+			if donatedSlices[selectedDonor] <= 0 {
 				donors = removeFromSlice(donors, selectedDonor)
 			}
 		} else {
-			sharedSlices -= borrowerGainedAmount
+			sharedSlices -= 1
 		}
 
-		alloc[selectedBorrower] += borrowerGainedAmount
-		rs.Services[selectedBorrower].Credits -= borrowerGainedAmount
+		alloc[selectedBorrower] += 1
+		rs.Services[selectedBorrower].Credits -= 1
 
 		// Update the set of borrowers
-		if alloc[selectedBorrower] >= demand[selectedBorrower] || rs.Services[selectedBorrower].Credits == 0 {
+		if alloc[selectedBorrower] >= demand[selectedBorrower] || rs.Services[selectedBorrower].Credits <= 0 {
 			borrowers = removeFromSlice(borrowers, selectedBorrower)
 		}
 	}
-
+	for _, service := range rs.Services {
+		fmt.Printf("Service: %s, Credits: %f\n", service.ID, service.Credits)
+	}
 	for serviceID, resourceAllocation := range alloc {
 		rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
 		rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
 	}
+	fmt.Printf("Allocation  for this round is: %v\n", alloc)
 
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
 	serviceToResourceMapLogging["TotalAllocableResources"] = rs.TotalAllocableResources
@@ -295,15 +299,16 @@ func (rs *ResourceScheduler) FairSchedule() error {
 
 func (rs *ResourceScheduler) MaxMinSchedule() error {
 	demands := make([]*DemandPair, 0)
-	demandList, err := rs.modelProxy.PredictDemand()
-	if err != nil || demandList == nil {
+	demandMap, err := rs.modelProxy.PredictDemand()
+	if err != nil || demandMap == nil {
 		return fmt.Errorf("error predicting demand: %v", err)
 	}
+	demandMap = rs.DenormalizeAndSanitizeDemandPercentages(demandMap)
 	index := 0
-	for id := range rs.Services {
+	for id, d := range demandMap {
 		newPair := DemandPair{
 			ServiceID: id,
-			Demand:    demandList[index],
+			Demand:    d,
 		}
 		demands = append(demands, &newPair)
 		index++
@@ -340,8 +345,8 @@ func (rs *ResourceScheduler) MaxMinSchedule() error {
 			break
 		}
 		for serviceID, resourceAllocation := range allocation {
-			rs.Services[serviceID].ResourceLimit = int64(resourceAllocation)
-			rs.serviceToResourceMap[serviceID] = int64(resourceAllocation)
+			rs.Services[serviceID].ResourceLimit = max(minResourceLimit, int64(resourceAllocation))
+			rs.serviceToResourceMap[serviceID] = max(minResourceLimit, int64(resourceAllocation))
 		}
 	}
 	serviceToResourceMapLogging := ConvertMapToStringInterface(rs.serviceToResourceMap)
@@ -349,5 +354,32 @@ func (rs *ResourceScheduler) MaxMinSchedule() error {
 	logger.Info("Max-min scheduling resource allocation summary", serviceToResourceMapLogging)
 
 	return nil
+}
 
+func (rs *ResourceScheduler) DenormalizeAndSanitizeDemandPercentages(demandPercentage map[string]float64) map[string]float64 {
+	actualDemands := make(map[string]float64)
+	for service, percent := range demandPercentage {
+		actualDemands[service] = percent * float64(rs.TotalAllocableResources)
+	}
+
+	for {
+		maxKey, maxValue := findMaxFloat(actualDemands)
+		adjusted := false
+
+		for key, value := range actualDemands {
+			if value < float64(minResourceLimit) {
+				diff := float64(minResourceLimit) - value
+				if key != maxKey && maxValue-diff >= float64(minResourceLimit) {
+					actualDemands[maxKey] -= diff
+					actualDemands[key] += diff
+					adjusted = true
+				}
+			}
+		}
+
+		if !adjusted {
+			break
+		}
+	}
+	return actualDemands
 }

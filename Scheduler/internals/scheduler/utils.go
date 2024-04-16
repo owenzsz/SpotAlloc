@@ -82,3 +82,15 @@ func selectDonorWithMinCredits(services map[string]*Service, donors []string) st
 	}
 	return selectedDonor
 }
+
+func findMaxFloat(m map[string]float64) (string, float64) {
+	maxKey := ""
+	maxValue := 0.0
+	for key, value := range m {
+		if value > maxValue {
+			maxValue = value
+			maxKey = key
+		}
+	}
+	return maxKey, maxValue
+}
