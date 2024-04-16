@@ -92,7 +92,7 @@ class PreemptionEstimator(object):
     
     def compute_preempt_prob_without_max(self):
         # TODO: how to estimate preemption probability if preemption does not rely on price
-        return 0.005
+        return 0.05
 
     def compute_preempt_prob_with_max(self):
         if len(self.prices) == 0:

@@ -30,28 +30,37 @@ class LoadEstimator(object):
     def load_data(self, load_data):
         # print(self.model)
         # print(load_data)
+        # if self.model is None and len(load_data) == 1:
+        #     # print("Enter 3")
+        #     self.data = np.append(load_data, load_data)
+        # else:
+        #     self.data = load_data
+
         if self.model is None and len(load_data) == 1:
             # print("Enter 3")
             self.data = np.append(load_data, load_data)
         else:
-            self.data = load_data
+            self.data = np.concatenate((self.data, load_data))
     
     def get_model(self):
         return self.model
 
     def update(self):
         # print("Enter update")
-        if self.model is None:
+        # if self.model is None:
             
-            # print(self.data)
-            self.model = sm.tsa.ARIMA(self.data, order=(1, 0,1))
-            # print("get 1")
-            # print(self.data.shape)
-            self.model = self.model.fit()
-            # print("get 2")
-        else:
-            # self.model = self.model.append(self.data)
-            self.model = self.model.append(self.data)
+        #     # print(self.data)
+        #     self.model = sm.tsa.ARIMA(self.data, order=(1, 0,1))
+        #     # print("get 1")
+        #     # print(self.data.shape)
+        #     self.model = self.model.fit()
+        #     # print("get 2")
+        # else:
+        #     # self.model = self.model.append(self.data)
+        #     self.model = self.model.append(self.data)
+
+        self.model = sm.tsa.ARIMA(self.data, order=(1, 0,1))
+        self.model = self.model.fit()
 
     def predict(self):
         forecast_results = self.model.get_forecast(steps=1)  # Forecast 10 future values
@@ -78,12 +87,15 @@ if __name__ == '__main__':
     le.load_data(load)
     le.update()
 
+    print(le.data)
     print(le.predict())
 
-    load = np.array([20,100,100,100,100,100,100])
+
+    load = np.array([50,60,70,80,100,100,100,100,100,100,100,100,100,100,500])
     le.load_data(load)
     le.update()
 
+    print(le.data)
     print(le.predict())
 
     # v,l,u = le.predict()
