@@ -27,19 +27,21 @@ class ResourceAllocator(object):
         self.resource = resource
 
         self.preemptions = None
+        self.SLO = []
 
     def log_data(self, identifier, timestamp, data):
         id = self.id_mapping[identifier]
         if self.resource_learner_pool[id].put_data(timestamp, data) == 0:
             return SUCCESS
     
-    def register_microservice(self, identifier, max_price=-1):
+    def register_microservice(self, identifier, slo, max_price=-1):
         if identifier not in self.id_mapping:
             self.id_mapping[identifier] = self.n_microservices
             self.index_mapping[self.n_microservices] = identifier
             self.n_microservices += 1
             self.resource_learner_pool.append(ResourceLearner())
             self.preemption_estimator_pool.append(PreemptionEstimator(max_price=-1))
+            self.SLO.append(slo)
             return SUCCESS
         else:
             return MICROSERICE_ALREADY_REGISTERED
@@ -82,6 +84,16 @@ class ResourceAllocator(object):
         # return self.resource - np.sum(a)
         # return np.sum(a) - 1
 
+    def slo_constraint(self, a):
+        """
+        Additional constraint function to ensure that
+        self.resource_learner_pool[i].predict_performance(a[i]) <= threshold
+        for each a[i] in a.
+        """
+        # print(self.resource_learner_pool[0].predict_performance(a[0])[0] - self.SLO[0])
+        violations = np.array([max(0, self.resource_learner_pool[i].predict_performance(a[i])[0] - self.SLO[i]) for i in range(self.n_microservices)])
+        return -np.sum(violations)
+
     def optimize(self):
         # Initial guess for a
         # initial_a = np.random.rand(self.n_microservices)
@@ -96,11 +108,14 @@ class ResourceAllocator(object):
         bounds = [(0, self.resource) for _ in range(len(initial_a))]
 
         # Constraint dictionary
-        constraints = {'type': 'eq', 'fun': self.constraint}
+        # constraints = {'type': 'eq', 'fun': self.constraint}
+        constraints = [{'type': 'eq', 'fun': self.constraint},  # Main constraint
+                       {'type': 'ineq', 'fun': lambda a: self.slo_constraint(a)}]  # Additional constraint
+
 
         # print("initial a after preemption:", initial_a)
         # Minimize the negative of the objective function to maximize
-        result = minimize(self.objective_function, initial_a, bounds=bounds, constraints=constraints, options={'maxiter': 1000})
+        result = minimize(self.objective_function, initial_a, bounds=bounds, constraints=constraints, options={'maxiter': 50})
         # print(result)
         optimal_a = result.x
         # optimal_a /= np.sum(optimal_a)  # Normalize to ensure the sum is 1
@@ -144,7 +159,7 @@ if __name__ == '__main__':
     # # ra.start_poll_all()
 
     ra = ResourceAllocator(100)
-    ra.register_microservice("a")
+    ra.register_microservice("a",9)
     ra.start_poll("a")
 
     # print("enter 1")
@@ -163,7 +178,7 @@ if __name__ == '__main__':
     print(ret)
 
 
-    ra.register_microservice("b")
+    ra.register_microservice("b",8)
     ra.start_poll("b")
 
 
@@ -176,7 +191,7 @@ if __name__ == '__main__':
     print(ret)
 
 
-    ra.register_microservice("c")
+    ra.register_microservice("c",8)
     ra.start_poll("c")
 
     # ra.log_data("c", 1, {"load": [10], "resource": [40], "latency":[100]})
@@ -189,7 +204,7 @@ if __name__ == '__main__':
     ret = ra.allocate()
     print(ret)
 
-    ra.register_microservice("d")
+    ra.register_microservice("d",9)
     ra.start_poll("d")
 
 
@@ -197,7 +212,7 @@ if __name__ == '__main__':
 
 
 
-    ra.register_microservice("e")
+    ra.register_microservice("e",10)
     ra.start_poll("e")
 
     ra.log_data("e", 1, {"load": [42.8571], "resource": [10.681], "latency":[10]})
