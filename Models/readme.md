@@ -24,7 +24,7 @@ Step 4: start using the api
 or 
 {
     "identifier": "c",
-    "max_price": 10.
+    "max_price": 10,
     "slo": 5
 }
 
