@@ -213,7 +213,7 @@ func (rs *ResourceScheduler) CreditBasedSchedule(round int) error {
 	// }
 	// fmt.Printf("Demand percentage for this round is: %v\n", demand)
 	// demand = rs.DenormalizeAndSanitizeDemandPercentages(demand)
-	rs.creditInflation()
+	// rs.creditInflation()
 	demand := rs.CreateMaliciousWorkload(round)
 	fairShare := float64(rs.TotalAllocableResources / int64(len(rs.Services)))
 	sharedSlices := float64(len(rs.Services)) * (1 - rs.Alpha) * fairShare
@@ -302,7 +302,6 @@ func (rs *ResourceScheduler) FairSchedule() error {
 }
 
 func (rs *ResourceScheduler) MaxMinSchedule(round int) error {
-	rs.creditInflation()
 	demands := make([]*DemandPair, 0)
 	// demandMap, err := rs.modelProxy.PredictDemand()
 	demandMap := rs.CreateMaliciousWorkload(round)

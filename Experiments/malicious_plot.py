@@ -3,16 +3,17 @@ import matplotlib.pyplot as plt
 
 # Data for each category
 credit = np.array([0.05])
+credit_no_inflation = np.array([0.1])
 maxmin = np.array([0.5])
 fair = np.array([0])
 
 # Calculate means and standard deviations
-means = [np.mean(credit), np.mean(maxmin), np.mean(fair)]
-stds = [np.std(credit), np.std(maxmin), np.std(fair)]
+means = [np.mean(credit), np.mean(credit_no_inflation), np.mean(maxmin), np.mean(fair)]
+stds = [np.std(credit), np.std(credit_no_inflation), np.std(maxmin), np.std(fair)]
 
 # Set up the bar labels and colors
-labels = ['Credit', 'MaxMin', 'Fair']
-colors = ['blue', 'green', 'red']  # Specify colors here
+labels = ['Credit','Credit-No-Inflation', 'MaxMin', 'Fair']
+colors = ['blue', 'green','red', 'yellow']  # Specify colors here
 
 # Creating the bar plot
 x = np.arange(len(labels))  # the label locations
