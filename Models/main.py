@@ -24,7 +24,7 @@ def register():
     if 'slo' not in data:
         slo = 10
     else:
-        slo = data.get('max_price')
+        slo = data.get('slo')
 
     ret = ra.register_microservice(identifier, max_price, slo)
 
