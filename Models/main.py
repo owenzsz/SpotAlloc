@@ -6,11 +6,11 @@ import sys
 app = Flask(__name__)
 
 if len(sys.argv) > 1:
-    max_price = int(sys.argv[1])
+    max_resource = int(sys.argv[1])
 else:
-    max_price = 10
+    max_resource = 10
 
-ra = ResourceAllocator(max_price)
+ra = ResourceAllocator(max_resource)
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -59,3 +59,7 @@ def allocate ():
 
 if __name__ == '__main__':
     app.run(debug=True, port=3000)  # Run Flask app in debug mode
+
+
+# SLO goal
+# egalitarian number of service satisfy SLO goal / total numbe rof service
