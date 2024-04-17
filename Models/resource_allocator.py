@@ -34,7 +34,7 @@ class ResourceAllocator(object):
         if self.resource_learner_pool[id].put_data(timestamp, data) == 0:
             return SUCCESS
     
-    def register_microservice(self, identifier, slo, max_price=-1):
+    def register_microservice(self, identifier, slo=10, max_price=-1):
         if identifier not in self.id_mapping:
             self.id_mapping[identifier] = self.n_microservices
             self.index_mapping[self.n_microservices] = identifier

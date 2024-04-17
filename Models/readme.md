@@ -2,7 +2,7 @@
 Follow the steps to use the demand estimator. \
 Step 1: install python and pip on the machine \
 Step 2: use `pip install -r requirements.txt` to install dependencies required \
-Step 3: `cd` to the Models directory and start the service by running `python3 main.py` or `python main.py` based on the naming of python on the machine \
+Step 3: `cd` to the Models directory and start the service by running `python3 main.py` or `python main.py` based on the naming of python on the machine. Can also add a total resource number as a parameter `python3 main.py 200`, the default value is 100 if no parameter passed\
 Step 4: start using the api
 
 # Backend API
@@ -14,10 +14,18 @@ Step 4: start using the api
 | name | type |
 | :-----------: | :-------------:| 
 | identifier       |   string      | 
+| max_price (optional)      |   int      | 
+| slo (optional, default to 10)       |   int      | 
 
 **sample request body:**
 {
     "identifier": "c"
+} 
+or 
+{
+    "identifier": "c",
+    "max_price": 10.
+    "slo": 5
 }
 
 ## log
