@@ -21,7 +21,12 @@ def register():
     else:
         max_price = data.get('max_price')
 
-    ret = ra.register_microservice(identifier, max_price)
+    if 'slo' not in data:
+        slo = 10
+    else:
+        slo = data.get('max_price')
+
+    ret = ra.register_microservice(identifier, max_price, slo)
 
     if ret == resource_allocator.MICROSERICE_ALREADY_REGISTERED:
         return jsonify({'code': 200, 'message': "microservice already registered"})
